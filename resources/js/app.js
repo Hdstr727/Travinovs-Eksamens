@@ -1,7 +1,17 @@
-import './bootstrap';
+import { createApp } from 'vue';
+import { createRouter, createWebHistory } from 'vue-router';
+import App from './components/App.vue';
+import Home from './components/Home.vue';
 
-import Alpine from 'alpinejs';
+// Define routes
+const routes = [
+    { path: '/', component: Home },
+];
 
-window.Alpine = Alpine;
+const router = createRouter({
+    history: createWebHistory(),
+    routes,
+});
 
-Alpine.start();
+// Create Vue app
+createApp(App).use(router).mount('#app');
