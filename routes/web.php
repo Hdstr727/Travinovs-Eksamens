@@ -25,3 +25,8 @@ Route::middleware('auth')->group(function () {
 });
 
 require __DIR__.'/auth.php';
+
+
+Route::get('/{any}', function () {
+    return view('app'); // This will serve the Vue app for all routes
+})->where('any', '.*');
