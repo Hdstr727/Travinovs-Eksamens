@@ -1,113 +1,73 @@
-<script setup>
-import GuestLayout from '@/Layouts/GuestLayout.vue';
-import InputError from '@/Components/InputError.vue';
-import InputLabel from '@/Components/InputLabel.vue';
-import PrimaryButton from '@/Components/PrimaryButton.vue';
-import TextInput from '@/Components/TextInput.vue';
-import { Head, Link, useForm } from '@inertiajs/vue3';
-
-const form = useForm({
-    name: '',
-    email: '',
-    password: '',
-    password_confirmation: '',
-});
-
-const submit = () => {
-    form.post(route('register'), {
-        onFinish: () => form.reset('password', 'password_confirmation'),
-    });
-};
-</script>
-
 <template>
-    <GuestLayout>
-        <Head title="Register" />
-
-        <form @submit.prevent="submit">
-            <div>
-                <InputLabel for="name" value="Name" />
-
-                <TextInput
-                    id="name"
-                    type="text"
-                    class="mt-1 block w-full"
-                    v-model="form.name"
-                    required
-                    autofocus
-                    autocomplete="name"
-                />
-
-                <InputError class="mt-2" :message="form.errors.name" />
-            </div>
-
-            <div class="mt-4">
-                <InputLabel for="email" value="Email" />
-
-                <TextInput
-                    id="email"
-                    type="email"
-                    class="mt-1 block w-full"
-                    v-model="form.email"
-                    required
-                    autocomplete="username"
-                />
-
-                <InputError class="mt-2" :message="form.errors.email" />
-            </div>
-
-            <div class="mt-4">
-                <InputLabel for="password" value="Password" />
-
-                <TextInput
-                    id="password"
-                    type="password"
-                    class="mt-1 block w-full"
-                    v-model="form.password"
-                    required
-                    autocomplete="new-password"
-                />
-
-                <InputError class="mt-2" :message="form.errors.password" />
-            </div>
-
-            <div class="mt-4">
-                <InputLabel
-                    for="password_confirmation"
-                    value="Confirm Password"
-                />
-
-                <TextInput
-                    id="password_confirmation"
-                    type="password"
-                    class="mt-1 block w-full"
-                    v-model="form.password_confirmation"
-                    required
-                    autocomplete="new-password"
-                />
-
-                <InputError
-                    class="mt-2"
-                    :message="form.errors.password_confirmation"
-                />
-            </div>
-
-            <div class="mt-4 flex items-center justify-end">
-                <Link
-                    :href="route('login')"
-                    class="rounded-md text-sm text-gray-600 underline hover:text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 dark:text-gray-400 dark:hover:text-gray-100 dark:focus:ring-offset-gray-800"
-                >
-                    Already registered?
-                </Link>
-
-                <PrimaryButton
-                    class="ms-4"
-                    :class="{ 'opacity-25': form.processing }"
-                    :disabled="form.processing"
-                >
-                    Register
-                </PrimaryButton>
-            </div>
+    <div class="flex min-h-screen items-center justify-center bg-gray-100">
+      <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
+        <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Reģistrācija</h2>
+        <form @submit.prevent="register">
+          <div class="mb-4">
+            <label class="block text-gray-700">Vārds</label>
+            <input v-model="form.name" type="text" class="input-field" required />
+          </div>
+          <div class="mb-4">
+            <label class="block text-gray-700">E-pasts</label>
+            <input v-model="form.email" type="email" class="input-field" required />
+          </div>
+          <div class="mb-4">
+            <label class="block text-gray-700">Parole</label>
+            <input v-model="form.password" type="password" class="input-field" required />
+          </div>
+          <div class="mb-4">
+            <label class="block text-gray-700">Apstiprināt paroli</label>
+            <input v-model="form.password_confirmation" type="password" class="input-field" required />
+          </div>
+          <button type="submit" class="btn">Reģistrēties</button>
+          <p class="mt-4 text-center">
+            Jau ir konts? <router-link to="/login" class="text-red-500">Pieteikties</router-link>
+          </p>
         </form>
-    </GuestLayout>
-</template>
+      </div>
+    </div>
+  </template>
+  
+  <script>
+  import axios from "axios";
+  import { useRouter } from "vue-router";
+  
+  export default {
+    setup() {
+      const router = useRouter();
+      const form = { name: "", email: "", password: "", password_confirmation: "" };
+  
+      const register = async () => {
+        try {
+            const response = await axios.post("/register", form);
+            console.log(response.data);
+            router.push("/kanban");
+        } catch (error) {
+            console.error("Registration failed", error.response?.data);
+            // You can display error messages here
+            alert("Registration failed: " + error.response?.data?.message);
+        }
+        };
+  
+      return { form, register };
+    }
+  };
+  </script>
+
+<style scoped>
+.input-field {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+}
+.btn {
+  width: 100%;
+  background-color: #e63946;
+  color: white;
+  padding: 10px;
+  border-radius: 5px;
+  font-weight: bold;
+}
+</style>
+  

@@ -1,9 +1,5 @@
 <template>
     <div>
-        <nav class="p-4 bg-gray-800 text-white flex justify-between">
-            <router-link to="/" class="mr-4">Home</router-link>
-            <router-link to="/kanban">Kanban Board</router-link>
-        </nav>
         <router-view></router-view>
     </div>
 </template>
