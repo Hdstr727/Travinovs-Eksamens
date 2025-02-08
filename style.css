@@ -1,5 +1,16 @@
 @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap');
 
+/* CSS Variables for Colors */
+:root {
+    --primary-color: #e63946;
+    --secondary-color: #f8d7da;
+    --background-color: #f8f9fa;
+    --text-color: #333;
+    --white-color: #fff;
+    --header-shadow: rgba(0, 0, 0, 0.1);
+    --card-shadow: rgba(0, 0, 0, 0.1);
+}
+
 /* Reset */
 * {
     font-family: 'Montserrat', sans-serif;
@@ -11,16 +22,16 @@
 }
 
 body {
-    background-color: #f8f9fa;
-    color: #333;
+    background-color: var(--background-color);
+    color: var(--text-color);
 }
 
 /* Header */
 header {
-    background: #e63946;
-    color: white;
+    background: var(--primary-color);
+    color: var(--white-color);
     padding: 20px 0;
-    box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
+    box-shadow: 0px 4px 6px var(--header-shadow);
 }
 
 .container {
@@ -41,7 +52,7 @@ nav ul li {
 }
 
 nav ul li a {
-    color: white;
+    color: var(--white-color);
     text-decoration: none;
     font-size: 16px;
     font-weight: bold;
@@ -53,19 +64,18 @@ nav ul li a:hover {
 }
 
 .login-btn {
-    background: white;
-    color: #e63946;
+    background: var(--white-color);
+    color: var(--primary-color);
     padding: 8px 15px;
     border-radius: 5px;
 }
 
 .login-btn:hover {
-    background: #f8d7da;
+    background: var(--secondary-color);
 }
 
 /* Hero Section */
 .hero {
-    /* color: white; */
     text-align: center;
     padding: 100px 20px;
 }
@@ -83,8 +93,8 @@ nav ul li a:hover {
 .btn {
     display: inline-block;
     padding: 12px 25px;
-    background: #e63946;
-    color: white;
+    background: var(--primary-color);
+    color: var(--white-color);
     font-size: 18px;
     font-weight: bold;
     text-decoration: none;
@@ -93,7 +103,7 @@ nav ul li a:hover {
 }
 
 .btn:hover {
-    background: #f8d7da;
+    background: var(--secondary-color);
 }
 
 /* Features Section */
@@ -115,10 +125,10 @@ nav ul li a:hover {
 }
 
 .feature-item {
-    background: white;
+    background: var(--white-color);
     padding: 20px;
     border-radius: 10px;
-    box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+    box-shadow: 0px 4px 8px var(--card-shadow);
     width: 300px;
     transition: 0.3s;
 }
@@ -129,7 +139,7 @@ nav ul li a:hover {
 
 .feature-item i {
     font-size: 40px;
-    color: #e63946;
+    color: var(--primary-color);
     margin-bottom: 10px;
 }
 
@@ -145,9 +155,102 @@ nav ul li a:hover {
 
 /* Footer */
 footer {
-    background: #e63946;
-    color: white;
+    background: var(--primary-color);
+    color: var(--white-color);
     text-align: center;
     padding: 15px 0;
     margin-top: 50px;
+}
+
+/* Dashboard */
+.dashboard-container {
+    width: 90%;
+    margin: 0 auto;
+    padding: 20px;
+    background: var(--white-color);
+    border-radius: 10px;
+    box-shadow: 0px 4px 12px var(--card-shadow);
+}
+
+.dashboard-container .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--primary-color);
+    color: var(--white-color);
+    padding: 20px;
+    border-radius: 10px;
+}
+
+.dashboard-container .header a {
+    color: var(--white-color);
+    font-weight: bold;
+}
+
+.dashboard-container .content {
+    display: flex;
+    gap: 30px;
+    margin-top: 20px;
+    justify-content: space-between;
+}
+
+.task-container {
+    display: flex;
+    gap: 30px;
+}
+
+.task-list {
+    background: #f1f1f1;
+    border-radius: 10px;
+    padding: 15px;
+    width: 300px;
+    min-height: 500px;
+    box-shadow: 0px 4px 8px var(--card-shadow);
+}
+
+.task-list h3 {
+    text-align: center;
+    font-size: 24px;
+    margin-bottom: 15px;
+    color: var(--primary-color);
+}
+
+.task-card {
+    background: var(--white-color);
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+    box-shadow: 0px 2px 4px var(--card-shadow);
+    transition: 0.3s;
+}
+
+.task-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0px 5px 15px var(--card-shadow);
+}
+
+.task-card p {
+    font-size: 18px;
+    color: #555;
+}
+
+.task-card span {
+    display: inline-block;
+    font-size: 14px;
+    color: #777;
+}
+
+/* Buttons */
+.task-card-btn {
+    background: var(--primary-color);
+    color: var(--white-color);
+    padding: 10px 20px;
+    border-radius: 5px;
+    border: none;
+    cursor: pointer;
+    transition: 0.3s;
+}
+
+.task-card-btn:hover {
+    background: var(--secondary-color);
 }
