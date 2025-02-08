@@ -1,0 +1,14 @@
+<?php
+    $serveris = "localhost";
+    $lietotajs = "root";
+    $parole = "yourpassword";
+    $db = "planotajs";
+
+    $savienojums = mysqli_connect($serveris, $lietotajs, $parole, $db);
+
+    if(!$savienojums){
+        
+    }else{
+    
+    }
+?>
