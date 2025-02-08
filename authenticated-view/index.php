@@ -9,9 +9,6 @@ if (!isset($_SESSION['user_id'])) {
 
 // Fetch user information from the session
 $username = $_SESSION['username'];
-
-// Example: Fetch tasks from the database if needed
-// $tasks = fetchTasksFromDatabase();  // You can fetch tasks for this user
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -29,53 +26,47 @@ $username = $_SESSION['username'];
         </div>
 
         <div class="content">
-            <h3>Your Tasks:</h3>
-            <p>Here, you can manage and view your tasks, progress, and deadlines.</p>
+            <h3>Planning Templates</h3>
+            <p>Select a template to start organizing your tasks efficiently.</p>
 
-            <!-- Task Management Section (Trello-like layout) -->
-            <div class="task-container">
-                <!-- To Do Column -->
-                <div class="task-column">
-                    <h4>To Do</h4>
-                    <div class="task-list">
-                        <div class="task-card">
-                            <p>Task 1 - Description of task...</p>
-                            <span>Due: 2025-02-10</span>
-                            <button class="task-card-btn">Move to In Progress</button>
-                        </div>
-                        <div class="task-card">
-                            <p>Task 2 - Description of task...</p>
-                            <span>Due: 2025-02-15</span>
-                            <button class="task-card-btn">Move to In Progress</button>
-                        </div>
-                    </div>
+            <!-- Template Grid -->
+            <div class="template-grid">
+                <div class="template-card">
+                    <h4>Kanban Board</h4>
+                    <p>Visualize your workflow with a drag-and-drop Kanban board.</p>
+                    <a href="kanban.php" class="template-btn">Open Kanban</a>
                 </div>
 
-                <!-- In Progress Column -->
-                <div class="task-column">
-                    <h4>In Progress</h4>
-                    <div class="task-list">
-                        <div class="task-card">
-                            <p>Task 3 - Description of task...</p>
-                            <span>Due: 2025-02-17</span>
-                            <button class="task-card-btn">Move to Completed</button>
-                        </div>
-                    </div>
+                <div class="template-card">
+                    <h4>Daily Planner</h4>
+                    <p>Plan your daily tasks and appointments in a structured format.</p>
+                    <a href="daily_planner.php" class="template-btn">Open Daily Planner</a>
                 </div>
 
-                <!-- Completed Column -->
-                <div class="task-column">
-                    <h4>Completed</h4>
-                    <div class="task-list">
-                        <div class="task-card">
-                            <p>Task 4 - Description of task...</p>
-                            <span>Completed: 2025-02-05</span>
-                        </div>
-                    </div>
+                <div class="template-card">
+                    <h4>Weekly Schedule</h4>
+                    <p>Organize tasks and deadlines in a week-based schedule.</p>
+                    <a href="weekly_schedule.php" class="template-btn">Open Weekly Schedule</a>
+                </div>
+
+                <div class="template-card">
+                    <h4>Gantt Chart</h4>
+                    <p>Plan tasks over a timeline for project tracking.</p>
+                    <a href="gantt_chart.php" class="template-btn">Open Gantt Chart</a>
+                </div>
+
+                <div class="template-card">
+                    <h4>Goal Tracker</h4>
+                    <p>Set, track, and achieve your goals with structured tracking.</p>
+                    <a href="goal_tracker.php" class="template-btn">Open Goal Tracker</a>
+                </div>
+
+                <div class="template-card">
+                    <h4>Notes & Ideas</h4>
+                    <p>Keep all your notes, ideas, and reminders in one place.</p>
+                    <a href="notes.php" class="template-btn">Open Notes</a>
                 </div>
             </div>
-
-            <!-- You can also display user-specific information from the database here -->
         </div>
     </div>
 </body>
