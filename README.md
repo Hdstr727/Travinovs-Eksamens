@@ -1,13 +1,13 @@
 Planotajs+ Project
 
-Planotajs+ is a project management and time tracking web application built using HTML, CSS, PHP, MySQL, and jQuery. The application allows users to log in, manage tasks, and track their productivity.
+Planotajs+ is a project management and time tracking web application built using HTML, tailwindcss, PHP, MySQL, and jQuery. The application allows users to log in, manage tasks, and track their productivity.
 
 Features
 
     User login system with secure password handling.
     Task management with the ability to add, edit, and delete tasks.
     User dashboard for viewing and managing tasks.
-    Responsive design using custom CSS.
+    Design using custom tailwind CSS.
 
 Requirements
 
