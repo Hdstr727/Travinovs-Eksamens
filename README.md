@@ -1,16 +1,23 @@
-Planotajs+ Project
+# Plānotājs+ Projekts
 
-Planotajs+ is a project management and time tracking web application built using HTML, tailwindcss, PHP, MySQL, and jQuery. The application allows users to log in, manage tasks, and track their productivity.
+**Plānotājs+** ir tīmekļa lietotne projektu pārvaldībai un laika uzskaitei, kas izstrādāta, izmantojot HTML, Tailwind CSS, PHP, MySQL un jQuery. Lietotne ļauj lietotājiem pieteikties, pārvaldīt uzdevumus un sekot līdzi produktivitātei.
 
-Features
+## Funkcijas
 
-    User login system with secure password handling.
-    Task management with the ability to add, edit, and delete tasks.
-    User dashboard for viewing and managing tasks.
-    Design using custom tailwind CSS.
+- Lietotāja pieteikšanās sistēma ar drošu parolju apstrādi.
+- Uzdevumu pārvaldība ar iespējām pievienot, rediģēt un dzēst uzdevumus.
+- Lietotāja panelis, lai skatītu un pārvaldītu uzdevumus.
+- Dizains, izmantojot Tailwind CSS ietvaru.
 
-Requirements
+## Prasības
 
-    PHP 7.4 or higher
-    MySQL or MariaDB
-    A web server (e.g., Apache or Nginx)
+- PHP 7.4 vai augstāka versija
+- MySQL vai MariaDB datu bāze
+- Tīmekļa serveris (piemēram, Apache vai Nginx)
+
+## Instalēšana
+
+1. **Klons šo repozitoriju:**
+
+   ```bash
+   git clone https://github.com/Hdstr727/Travinovs-Eksamens.git
