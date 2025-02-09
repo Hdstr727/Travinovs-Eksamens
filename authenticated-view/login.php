@@ -52,18 +52,23 @@ $connection->close();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login</title>
-    <link rel="stylesheet" href="../style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-    <div class="login-container">
-        <h2>Login to the System</h2>
+<body class="flex items-center justify-center min-h-screen bg-gray-100">
+    <div class="w-full max-w-md p-8 bg-white rounded-lg shadow-md text-center">
+        <h2 class="text-2xl font-bold text-[#e63946] mb-4">Login to the System</h2>
         <?php if ($error): ?>
-            <p class="error"><?php echo $error; ?></p>
+            <p class="text-sm font-semibold text-red-600 mb-4"><?php echo $error; ?></p>
         <?php endif; ?>
-        <form method="POST" action="">
-            <input type="text" name="username" placeholder="Username" required>
-            <input type="password" name="password" placeholder="Password" required>
-            <button type="submit">Log in</button>
+        <form method="POST" action="" class="flex flex-col gap-4">
+            <input type="text" name="username" placeholder="Username" required
+                class="w-full p-3 text-lg border-2 border-[#e63946] rounded-md outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-300">
+            <input type="password" name="password" placeholder="Password" required
+                class="w-full p-3 text-lg border-2 border-[#e63946] rounded-md outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-300">
+            <button type="submit" 
+                class="w-full bg-[#e63946] text-white py-3 text-lg font-semibold rounded-md transition hover:bg-red-700 hover:-translate-y-1">
+                Log in
+            </button>
         </form>
     </div>
 </body>

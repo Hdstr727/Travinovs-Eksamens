@@ -16,57 +16,37 @@ $username = $_SESSION['username'];
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Planotajs</title>
-    <link rel="stylesheet" href="../style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-    <div class="dashboard-container">
-        <div class="header">
-            <h2>Welcome, <?php echo htmlspecialchars($username); ?>!</h2>
-            <a href="logout.php" class="logout-btn">Logout</a>
+<body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col items-center p-6">
+    <div class="w-full max-w-4xl bg-white p-6 rounded-lg shadow-lg">
+        <div class="flex justify-between items-center border-b pb-4 mb-4">
+            <h2 class="text-2xl font-bold text-[#e63946]">Welcome, <?php echo htmlspecialchars($username); ?>!</h2>
+            <a href="logout.php" class="bg-[#e63946] text-white py-2 px-4 rounded-lg font-semibold hover:bg-red-700 transition">Logout</a>
         </div>
 
-        <div class="content">
-            <h3>Planning Templates</h3>
-            <p>Select a template to start organizing your tasks efficiently.</p>
+        <h3 class="text-xl font-semibold text-gray-700 mb-2">Planning Templates</h3>
+        <p class="text-gray-600 mb-6">Select a template to start organizing your tasks efficiently.</p>
 
-            <!-- Template Grid -->
-            <div class="template-grid">
-                <div class="template-card">
-                    <h4>Kanban Board</h4>
-                    <p>Visualize your workflow with a drag-and-drop Kanban board.</p>
-                    <a href="kanban.php" class="template-btn">Open Kanban</a>
-                </div>
-
-                <div class="template-card">
-                    <h4>Daily Planner</h4>
-                    <p>Plan your daily tasks and appointments in a structured format.</p>
-                    <a href="daily_planner.php" class="template-btn">Open Daily Planner</a>
-                </div>
-
-                <div class="template-card">
-                    <h4>Weekly Schedule</h4>
-                    <p>Organize tasks and deadlines in a week-based schedule.</p>
-                    <a href="weekly_schedule.php" class="template-btn">Open Weekly Schedule</a>
-                </div>
-
-                <div class="template-card">
-                    <h4>Gantt Chart</h4>
-                    <p>Plan tasks over a timeline for project tracking.</p>
-                    <a href="gantt_chart.php" class="template-btn">Open Gantt Chart</a>
-                </div>
-
-                <div class="template-card">
-                    <h4>Goal Tracker</h4>
-                    <p>Set, track, and achieve your goals with structured tracking.</p>
-                    <a href="goal_tracker.php" class="template-btn">Open Goal Tracker</a>
-                </div>
-
-                <div class="template-card">
-                    <h4>Notes & Ideas</h4>
-                    <p>Keep all your notes, ideas, and reminders in one place.</p>
-                    <a href="notes.php" class="template-btn">Open Notes</a>
-                </div>
-            </div>
+        <!-- Template Grid -->
+        <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <?php 
+            $templates = [
+                ["Kanban Board", "Visualize your workflow with a drag-and-drop Kanban board.", "kanban.php"],
+                ["Daily Planner", "Plan your daily tasks and appointments in a structured format.", "daily_planner.php"],
+                ["Weekly Schedule", "Organize tasks and deadlines in a week-based schedule.", "weekly_schedule.php"],
+                ["Gantt Chart", "Plan tasks over a timeline for project tracking.", "gantt_chart.php"],
+                ["Goal Tracker", "Set, track, and achieve your goals with structured tracking.", "goal_tracker.php"],
+                ["Notes & Ideas", "Keep all your notes, ideas, and reminders in one place.", "notes.php"]
+            ];
+            foreach ($templates as $template) {
+                echo "<div class='bg-gray-50 p-6 rounded-lg shadow-md text-center hover:shadow-lg transition'>
+                        <h4 class='text-lg font-semibold text-[#e63946] mb-2'>{$template[0]}</h4>
+                        <p class='text-gray-600 mb-4'>{$template[1]}</p>
+                        <a href='{$template[2]}' class='bg-[#e63946] text-white py-2 px-4 rounded-lg font-semibold hover:bg-red-700 transition'>Open</a>
+                      </div>";
+            }
+            ?>
         </div>
     </div>
 </body>

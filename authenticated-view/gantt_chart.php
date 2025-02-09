@@ -4,25 +4,26 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Gantt Chart</title>
-    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body>
-    <div class="gantt-container">
-        <h2>Gantt Chart</h2>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-6">
+
+    <div class="bg-white p-6 rounded-lg shadow-lg max-w-4xl w-full">
+        <h2 class="text-2xl font-bold text-center text-[#e63946] mb-4">Gantt Chart</h2>
 
         <!-- Task Input -->
-        <div class="task-form">
-            <input type="text" id="task-name" placeholder="Task Name">
-            <label>Start Date:</label>
-            <input type="date" id="start-date">
-            <label>End Date:</label>
-            <input type="date" id="end-date">
-            <button onclick="addTask()">Add Task</button>
+        <div class="mb-6">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <input type="text" id="task-name" class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#e63946]" placeholder="Task Name">
+                <input type="date" id="start-date" class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#e63946]">
+                <input type="date" id="end-date" class="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#e63946]">
+                <button onclick="addTask()" class="bg-[#e63946] text-white px-4 py-2 rounded-lg font-semibold hover:bg-red-700 transition">Add Task</button>
+            </div>
         </div>
 
         <!-- Gantt Chart Display -->
-        <div class="gantt-chart">
-            <div class="gantt-header">
+        <div class="overflow-x-auto">
+            <div class="grid grid-cols-6 bg-gray-200 p-3 font-semibold rounded-t-lg text-gray-700">
                 <span>Task</span>
                 <span>Start Date</span>
                 <span>End Date</span>
@@ -30,7 +31,7 @@
                 <span>Progress</span>
                 <span>Action</span>
             </div>
-            <div id="task-list"></div>
+            <div id="task-list" class="divide-y divide-gray-300"></div>
         </div>
     </div>
 
@@ -56,14 +57,14 @@
             }
 
             let taskRow = document.createElement("div");
-            taskRow.classList.add("task-row");
+            taskRow.classList.add("grid", "grid-cols-6", "p-3", "bg-white", "rounded-lg", "shadow-sm", "items-center");
             taskRow.innerHTML = `
-                <span>${taskName}</span>
-                <span>${startDate}</span>
-                <span>${endDate}</span>
-                <span>${duration} days</span>
-                <progress value="0" max="${duration}" id="progress-${taskName}"></progress>
-                <button onclick="removeTask(this)">❌</button>
+                <span class="text-gray-700">${taskName}</span>
+                <span class="text-gray-600">${startDate}</span>
+                <span class="text-gray-600">${endDate}</span>
+                <span class="text-gray-600">${duration} days</span>
+                <progress value="0" max="${duration}" id="progress-${taskName}" class="w-20"></progress>
+                <button onclick="removeTask(this)" class="text-red-600 font-bold hover:text-red-800 transition">❌</button>
             `;
             taskList.appendChild(taskRow);
 
@@ -76,5 +77,6 @@
             element.parentElement.remove();
         }
     </script>
+
 </body>
 </html>
