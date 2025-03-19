@@ -65,15 +65,15 @@ if ($hour < 12) {
                 </button>
 
                 <!-- Profile Icon -->
-                <div class="relative">
-                    <button id="profile-toggle" class="bg-gray-200 p-2 rounded-full hover:bg-gray-300 transition">
-                        👤
-                    </button>
-                    <div id="profile-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-md p-4">
-                        <p class="text-sm text-gray-600"><?php echo htmlspecialchars($username); ?></p>
-                        <a href="profile.php" class="block mt-2 text-[#e63946] hover:underline">View Profile</a>
-                    </div>
+            <div class="relative">
+                <button id="profile-toggle" class="bg-gray-200 p-2 rounded-full hover:bg-gray-300 transition">
+                    👤
+                </button>
+                <div id="profile-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-md p-4">
+                    <p class="text-sm text-gray-600"><?php echo htmlspecialchars($username); ?></p>
+                    <a href="profile.php" class="block mt-2 text-[#e63946] hover:underline">View Profile</a>
                 </div>
+            </div>
                 <!-- Logout Button -->
                 <a href="logout.php" class="bg-[#e63946] text-white py-2 px-4 rounded-lg font-semibold hover:bg-red-700 transition">Logout</a>
             </div>

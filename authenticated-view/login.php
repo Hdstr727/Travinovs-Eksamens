@@ -57,9 +57,11 @@ $connection->close();
 <body class="flex items-center justify-center min-h-screen bg-gray-100">
     <div class="w-full max-w-md p-8 bg-white rounded-lg shadow-md text-center">
         <h2 class="text-2xl font-bold text-[#e63946] mb-4">Login to the System</h2>
+        
         <?php if ($error): ?>
             <p class="text-sm font-semibold text-red-600 mb-4"><?php echo $error; ?></p>
         <?php endif; ?>
+
         <form method="POST" action="" class="flex flex-col gap-4">
             <input type="text" name="username" placeholder="Username" required
                 class="w-full p-3 text-lg border-2 border-[#e63946] rounded-md outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-300">
@@ -70,6 +72,10 @@ $connection->close();
                 Log in
             </button>
         </form>
+
+        <div class="mt-4">
+            <a href="https://kristovskis.lv/3pt1/travinovs/Travinovs-Eksamens" class="text-[#e63946] hover:underline">← Back to Home Page</a>
+        </div>
     </div>
 </body>
 </html>
