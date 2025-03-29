@@ -76,6 +76,12 @@ $connection->close();
         <div class="mt-4">
             <a href="https://kristovskis.lv/3pt1/travinovs/Travinovs-Eksamens" class="text-[#e63946] hover:underline">← Back to Home Page</a>
         </div>
+
+        <div class="mt-4">
+            <p class="text-gray-700">Don't have an account? 
+                <a href="register.php" class="text-[#e63946] hover:underline">Sign up</a>
+            </p>
+        </div>
     </div>
 </body>
 </html>
