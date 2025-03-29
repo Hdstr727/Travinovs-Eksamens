@@ -6,7 +6,7 @@ require '../admin/database/connection.php';
 
 // Initialize an error message
 $error = "";
-$success = "";
+$success = false;
 
 // Check if the form is submitted
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
@@ -36,7 +36,15 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $insert->bind_param("ss", $username, $hashed_password);
 
             if ($insert->execute()) {
-                $success = "Account created successfully! You can now <a href='login.php' class='text-[#e63946] hover:underline'>log in</a>.";
+                // Get the inserted user's ID
+                $user_id = $insert->insert_id;
+                
+                // Set session variables to log in the user
+                $_SESSION['user_id'] = $user_id;
+                $_SESSION['username'] = $username;
+                
+                // Set success flag to trigger notification
+                $success = true;
             } else {
                 $error = "Something went wrong. Please try again.";
             }
@@ -56,41 +64,54 @@ $connection->close();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Register</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        <?php if ($success): ?>
+            let count = 3;
+            function countdown() {
+                document.getElementById('countdown').textContent = count;
+                if (count > 0) {
+                    count--;
+                    setTimeout(countdown, 1000);
+                } else {
+                    window.location.href = 'index.php';
+                }
+            }
+            window.onload = countdown;
+        <?php endif; ?>
+    </script>
 </head>
 <body class="flex items-center justify-center min-h-screen bg-gray-100">
     <div class="w-full max-w-md p-8 bg-white rounded-lg shadow-md text-center">
-        <h2 class="text-2xl font-bold text-[#e63946] mb-4">Create an Account</h2>
-        
-        <?php if ($error): ?>
-            <p class="text-sm font-semibold text-red-600 mb-4"><?php echo $error; ?></p>
-        <?php endif; ?>
-        
         <?php if ($success): ?>
-            <p class="text-sm font-semibold text-green-600 mb-4"><?php echo $success; ?></p>
+            <div class="text-green-600 font-semibold text-lg mb-4">
+                Registration successful! Redirecting in <span id="countdown">3</span> seconds...
+            </div>
         <?php else: ?>
-        <form method="POST" action="" class="flex flex-col gap-4">
-            <input type="text" name="username" placeholder="Username" required
-                class="w-full p-3 text-lg border-2 border-[#e63946] rounded-md outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-300">
-            <input type="password" name="password" placeholder="Password" required
-                class="w-full p-3 text-lg border-2 border-[#e63946] rounded-md outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-300">
-            <input type="password" name="confirm_password" placeholder="Confirm Password" required
-                class="w-full p-3 text-lg border-2 border-[#e63946] rounded-md outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-300">
-            <button type="submit" 
-                class="w-full bg-[#e63946] text-white py-3 text-lg font-semibold rounded-md transition hover:bg-red-700 hover:-translate-y-1">
-                Sign Up
-            </button>
-        </form>
+            <h2 class="text-2xl font-bold text-[#e63946] mb-4">Create an Account</h2>
+            <?php if ($error): ?>
+                <p class="text-sm font-semibold text-red-600 mb-4"><?php echo $error; ?></p>
+            <?php endif; ?>
+            <form method="POST" action="" class="flex flex-col gap-4">
+                <input type="text" name="username" placeholder="Username" required
+                    class="w-full p-3 text-lg border-2 border-[#e63946] rounded-md outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-300">
+                <input type="password" name="password" placeholder="Password" required
+                    class="w-full p-3 text-lg border-2 border-[#e63946] rounded-md outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-300">
+                <input type="password" name="confirm_password" placeholder="Confirm Password" required
+                    class="w-full p-3 text-lg border-2 border-[#e63946] rounded-md outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-300">
+                <button type="submit" 
+                    class="w-full bg-[#e63946] text-white py-3 text-lg font-semibold rounded-md transition hover:bg-red-700 hover:-translate-y-1">
+                    Sign Up
+                </button>
+            </form>
+            <div class="mt-4">
+                <a href="https://kristovskis.lv/3pt1/travinovs/Travinovs-Eksamens" class="text-[#e63946] hover:underline">← Back to Home Page</a>
+            </div>
+            <div class="mt-4">
+                <p class="text-gray-700">Already have an account? 
+                    <a href="login.php" class="text-[#e63946] hover:underline">Log in</a>
+                </p>
+            </div>
         <?php endif; ?>
-
-        <div class="mt-4">
-            <a href="https://kristovskis.lv/3pt1/travinovs/Travinovs-Eksamens" class="text-[#e63946] hover:underline">← Back to Home Page</a>
-        </div>
-
-        <div class="mt-4">
-            <p class="text-gray-700">Already have an account? 
-                <a href="login.php" class="text-[#e63946] hover:underline">Log in</a>
-            </p>
-        </div>
     </div>
 </body>
 </html>
