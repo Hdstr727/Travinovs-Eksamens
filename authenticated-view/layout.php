@@ -21,7 +21,7 @@ $user_avatar = "https://ui-avatars.com/api/?name=" . urlencode($username) . "&ba
     <header class="bg-white shadow-md p-4 flex justify-between items-center">
         <h1 class="text-xl font-bold text-[#e63946]">Plānotājs+</h1>
         <nav class="flex gap-4">
-            <a href="dashboard.php" class="text-gray-700 hover:text-[#e63946]">Galvenā</a>
+            <a href="index.php" class="text-gray-700 hover:text-[#e63946]">Galvenā</a>
             <a href="kanban.php" class="text-gray-700 hover:text-[#e63946]">Kanban</a>
             <a href="calendar.php" class="text-gray-700 hover:text-[#e63946]">Kalendārs</a>
         </nav>
