@@ -16,7 +16,7 @@ $user_avatar = "https://ui-avatars.com/api/?name=" . urlencode($username) . "&ba
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col">
-    
+   
     <!-- Шапка -->
     <header class="bg-white shadow-md p-4 flex justify-between items-center">
         <h1 class="text-xl font-bold text-[#e63946]">Plānotājs+</h1>
@@ -26,21 +26,23 @@ $user_avatar = "https://ui-avatars.com/api/?name=" . urlencode($username) . "&ba
             <a href="calendar.php" class="text-gray-700 hover:text-[#e63946]">Kalendārs</a>
         </nav>
         <div class="flex items-center gap-4">
-            <img src="<?= $user_avatar ?>" class="w-10 h-10 rounded-full border" alt="Avatar">
+            <a href="profile.php" class="relative group">
+                <img src="<?= $user_avatar ?>" class="w-10 h-10 rounded-full border group-hover:opacity-90 transition-opacity" alt="Avatar">
+                <div class="absolute opacity-0 group-hover:opacity-100 transition-opacity text-xs bg-black text-white px-2 py-1 rounded -bottom-8 left-1/2 transform -translate-x-1/2 whitespace-nowrap">
+                    Rediģēt profilu
+                </div>
+            </a>
             <span class="font-semibold"><?= $username ?></span>
             <a href="logout.php" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-700">Iziet</a>
         </div>
     </header>
-
     <!-- Контент страницы -->
     <main class="flex-grow container mx-auto p-6">
         <?php include $content; ?>
     </main>
-
     <!-- Футер -->
     <footer class="bg-gray-200 text-center p-4 text-gray-600">
         &copy; <?= date("Y") ?> Plānotājs+. Visas tiesības aizsargātas.
     </footer>
-
 </body>
 </html>
