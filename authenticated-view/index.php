@@ -7,8 +7,28 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
+// Include database connection
+require_once '../admin/database/connection.php';
+
+// Get user info from database including profile picture
+$user_id = $_SESSION['user_id'];
+$sql = "SELECT username, profile_picture FROM Planotajs_Users WHERE user_id = ?";
+$stmt = $connection->prepare($sql);
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$result = $stmt->get_result();
+$user = $result->fetch_assoc();
+$stmt->close();
+
 // Fetch user information from the session
-$username = $_SESSION['username'];
+$username = $user['username'] ?? $_SESSION['username'];
+
+// Check if user has a profile picture, otherwise use the UI Avatars API
+if (!empty($user['profile_picture']) && file_exists($user['profile_picture'])) {
+    $user_avatar = $user['profile_picture'];
+} else {
+    $user_avatar = "https://ui-avatars.com/api/?name=" . urlencode($username) . "&background=e63946&color=fff";
+}
 
 // Dynamic greeting based on time of day
 $hour = date('H');
@@ -42,6 +62,16 @@ if ($hour < 12) {
             background-color: #2d3748;
             color: #e2e8f0;
         }
+        .dark-mode .bg-white {
+            background-color: #2d3748;
+            color: #e2e8f0;
+        }
+        .dark-mode #profile-dropdown, 
+        .dark-mode #notifications-dropdown, 
+        .dark-mode #add-board-modal {
+            background-color: #2d3748;
+            color: #e2e8f0;
+        }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
@@ -65,15 +95,15 @@ if ($hour < 12) {
                 </button>
 
                 <!-- Profile Icon -->
-            <div class="relative">
-                <button id="profile-toggle" class="bg-gray-200 p-2 rounded-full hover:bg-gray-300 transition">
-                    👤
-                </button>
-                <div id="profile-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-md p-4">
-                    <p class="text-sm text-gray-600"><?php echo htmlspecialchars($username); ?></p>
-                    <a href="profile.php" class="block mt-2 text-[#e63946] hover:underline">View Profile</a>
+                <div class="relative">
+                    <button id="profile-toggle" class="relative">
+                        <img src="<?= $user_avatar ?>" class="w-10 h-10 rounded-full border hover:opacity-90 transition-opacity" alt="Avatar">
+                    </button>
+                    <div id="profile-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-md p-4">
+                        <p class="text-sm text-gray-600"><?php echo htmlspecialchars($username); ?></p>
+                        <a href="profile.php" class="block mt-2 text-[#e63946] hover:underline">View Profile</a>
+                    </div>
                 </div>
-            </div>
                 <!-- Logout Button -->
                 <a href="logout.php" class="bg-[#e63946] text-white py-2 px-4 rounded-lg font-semibold hover:bg-red-700 transition">Logout</a>
             </div>
@@ -106,8 +136,6 @@ if ($hour < 12) {
             <input type="text" placeholder="Search boards, tasks, or templates..." class="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#e63946]">
         </div>
 
-        
-
         <!-- Your Boards Section -->
         <div class="mb-8">
             <h3 class="text-xl font-semibold text-gray-700 mb-4">Your Boards</h3>
@@ -138,37 +166,7 @@ if ($hour < 12) {
                 </div>
             </div>
 
-            <script>
-                document.getElementById('add-board-btn').addEventListener('click', function() {
-                    document.getElementById('add-board-modal').classList.remove('hidden');
-                });
-
-                document.getElementById('close-modal').addEventListener('click', function() {
-                    document.getElementById('add-board-modal').classList.add('hidden');
-                });
-
-                document.getElementById('create-board').addEventListener('click', function() {
-                    const boardName = document.getElementById('board-name').value.trim();
-                    const boardTemplate = document.getElementById('board-template').value;
-                    
-                    if (boardName) {
-                        // Sending the data (board name and template type) to the server
-                        fetch('create_board.php', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                            body: `board_name=${encodeURIComponent(boardName)}&board_template=${encodeURIComponent(boardTemplate)}`
-                        }).then(response => response.json()).then(data => {
-                            if (data.success) {
-                                location.reload(); // Reload the page to show the new board
-                            } else {
-                                alert('Error creating board.');
-                            }
-                        });
-                    }
-                });
-            </script>
             <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-
                 <?php
                 // Example data for user boards
                 $boards = [
@@ -209,16 +207,20 @@ if ($hour < 12) {
             <div class="bg-white p-6 rounded-lg shadow-md">
                 <div class="space-y-4">
                     <div class="flex items-center space-x-4">
-                        <div class="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">👤</div>
+                        <div class="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center overflow-hidden">
+                            <img src="<?= $user_avatar ?>" class="w-full h-full object-cover" alt="User Avatar">
+                        </div>
                         <div>
-                            <p class="text-sm text-gray-600"><span class="font-semibold">John Doe</span> created a new board: <span class="text-[#e63946]">Project Alpha</span></p>
+                            <p class="text-sm text-gray-600"><span class="font-semibold"><?= htmlspecialchars($username) ?></span> created a new board: <span class="text-[#e63946]">Project Alpha</span></p>
                             <p class="text-xs text-gray-500">2 hours ago</p>
                         </div>
                     </div>
                     <div class="flex items-center space-x-4">
-                        <div class="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">👤</div>
+                        <div class="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center overflow-hidden">
+                            <img src="<?= $user_avatar ?>" class="w-full h-full object-cover" alt="User Avatar">
+                        </div>
                         <div>
-                            <p class="text-sm text-gray-600"><span class="font-semibold">Jane Smith</span> commented on <span class="text-[#e63946]">Task 3</span>.</p>
+                            <p class="text-sm text-gray-600"><span class="font-semibold"><?= htmlspecialchars($username) ?></span> commented on <span class="text-[#e63946]">Task 3</span>.</p>
                             <p class="text-xs text-gray-500">5 hours ago</p>
                         </div>
                     </div>
@@ -228,7 +230,7 @@ if ($hour < 12) {
 
         <!-- Footer -->
         <div class="text-center text-gray-600 mt-8">
-            <p>&copy; 2023 Planotajs. All rights reserved.</p>
+            <p>&copy; <?= date("Y") ?> Planotajs. All rights reserved.</p>
             <div class="mt-2">
                 <a href="#" class="text-[#e63946] hover:underline">About</a> |
                 <a href="#" class="text-[#e63946] hover:underline">Contact</a> |
@@ -245,6 +247,68 @@ if ($hour < 12) {
         notificationsToggle.addEventListener('click', () => {
             notificationsDropdown.classList.toggle('hidden');
         });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!notificationsToggle.contains(e.target) && !notificationsDropdown.contains(e.target)) {
+                notificationsDropdown.classList.add('hidden');
+            }
+        });
+    </script>
+
+    <!-- Profile Dropdown Script -->
+    <script>
+        const profileToggle = document.getElementById('profile-toggle');
+        const profileDropdown = document.getElementById('profile-dropdown');
+
+        profileToggle.addEventListener('click', () => {
+            profileDropdown.classList.toggle('hidden');
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!profileToggle.contains(e.target) && !profileDropdown.contains(e.target)) {
+                profileDropdown.classList.add('hidden');
+            }
+        });
+    </script>
+
+    <!-- Board Modal Script -->
+    <script>
+        document.getElementById('add-board-btn').addEventListener('click', function() {
+            document.getElementById('add-board-modal').classList.remove('hidden');
+        });
+
+        document.getElementById('close-modal').addEventListener('click', function() {
+            document.getElementById('add-board-modal').classList.add('hidden');
+        });
+
+        document.getElementById('create-board').addEventListener('click', function() {
+            const boardName = document.getElementById('board-name').value.trim();
+            const boardTemplate = document.getElementById('board-template').value;
+            
+            if (boardName) {
+                // Sending the data (board name and template type) to the server
+                fetch('create_board.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `board_name=${encodeURIComponent(boardName)}&board_template=${encodeURIComponent(boardTemplate)}`
+                }).then(response => response.json()).then(data => {
+                    if (data.success) {
+                        location.reload(); // Reload the page to show the new board
+                    } else {
+                        alert('Error creating board.');
+                    }
+                });
+            }
+        });
+
+        // Close modal when clicking outside
+        document.getElementById('add-board-modal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                this.classList.add('hidden');
+            }
+        });
     </script>
 
     <!-- Dark Mode Toggle Script -->
@@ -252,8 +316,15 @@ if ($hour < 12) {
         const darkModeToggle = document.getElementById('dark-mode-toggle');
         const body = document.body;
 
+        // Check for saved dark mode preference
+        if (localStorage.getItem('darkMode') === 'true') {
+            body.classList.add('dark-mode');
+        }
+
         darkModeToggle.addEventListener('click', () => {
             body.classList.toggle('dark-mode');
+            // Save preference to localStorage
+            localStorage.setItem('darkMode', body.classList.contains('dark-mode'));
         });
     </script>
 </body>

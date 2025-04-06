@@ -17,7 +17,7 @@
 
 ## Instalēšana
 
-1. **Klons šo repozitoriju:**
+1. **Klone šo repozitoriju:**
 
    ```bash
    git clone https://github.com/Hdstr727/Travinovs-Eksamens.git

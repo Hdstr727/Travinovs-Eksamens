@@ -4,8 +4,29 @@ if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
     exit();
 }
-$username = $_SESSION['username'];
-$user_avatar = "https://ui-avatars.com/api/?name=" . urlencode($username) . "&background=e63946&color=fff";
+
+// Include database connection
+require_once '../admin/database/connection.php';
+
+// Get user info from database including profile picture
+$user_id = $_SESSION['user_id'];
+$sql = "SELECT username, profile_picture FROM Planotajs_Users WHERE user_id = ?";
+$stmt = $connection->prepare($sql);
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$result = $stmt->get_result();
+$user = $result->fetch_assoc();
+$stmt->close();
+
+// Set username from database or session
+$username = $user['username'] ?? $_SESSION['username'];
+
+// Check if user has a profile picture, otherwise use the UI Avatars API
+if (!empty($user['profile_picture']) && file_exists($user['profile_picture'])) {
+    $user_avatar = $user['profile_picture'];
+} else {
+    $user_avatar = "https://ui-avatars.com/api/?name=" . urlencode($username) . "&background=e63946&color=fff";
+}
 ?>
 <!DOCTYPE html>
 <html lang="lv">
@@ -17,7 +38,7 @@ $user_avatar = "https://ui-avatars.com/api/?name=" . urlencode($username) . "&ba
 </head>
 <body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col">
    
-    <!-- Шапка -->
+    <!-- Šapka -->
     <header class="bg-white shadow-md p-4 flex justify-between items-center">
         <h1 class="text-xl font-bold text-[#e63946]">Plānotājs+</h1>
         <nav class="flex gap-4">
@@ -36,11 +57,11 @@ $user_avatar = "https://ui-avatars.com/api/?name=" . urlencode($username) . "&ba
             <a href="logout.php" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-700">Iziet</a>
         </div>
     </header>
-    <!-- Контент страницы -->
+    <!-- Kontents -->
     <main class="flex-grow container mx-auto p-6">
         <?php include $content; ?>
     </main>
-    <!-- Футер -->
+    <!-- Footers -->
     <footer class="bg-gray-200 text-center p-4 text-gray-600">
         &copy; <?= date("Y") ?> Plānotājs+. Visas tiesības aizsargātas.
     </footer>
