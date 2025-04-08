@@ -45,6 +45,7 @@ if (!empty($user['profile_picture']) && file_exists($user['profile_picture'])) {
             <a href="index.php" class="text-gray-700 hover:text-[#e63946]">Galvenā</a>
             <a href="kanban.php" class="text-gray-700 hover:text-[#e63946]">Kanban</a>
             <a href="calendar.php" class="text-gray-700 hover:text-[#e63946]">Kalendārs</a>
+            <a href="project_settings.php" class="text-gray-700 hover:text-[#e63946]">Iestatījumi</a>
         </nav>
         <div class="flex items-center gap-4">
             <a href="profile.php" class="relative group">
