@@ -20,6 +20,21 @@ $result = $stmt->get_result();
 $user = $result->fetch_assoc();
 $stmt->close();
 
+
+// Get board count
+$board_count_sql = "SELECT COUNT(*) as count FROM Planotajs_Boards WHERE user_id = ? AND is_deleted = 0";
+$board_stmt = $connection->prepare($board_count_sql);
+$board_stmt->bind_param("i", $user_id);
+$board_stmt->execute();
+$board_count = $board_stmt->get_result()->fetch_assoc()['count'];
+$board_stmt->close();
+
+// For now, we'll use placeholder values for tasks and deadlines
+// You would implement these when you have the tasks table
+$completed_tasks = 0;
+$upcoming_deadlines = 0;
+
+
 // Fetch user information from the session
 $username = $user['username'] ?? $_SESSION['username'];
 
@@ -39,6 +54,58 @@ if ($hour < 12) {
 } else {
     $greeting = "Good Evening";
 }
+
+// Fetch user's boards from database - MOVED UP FROM BELOW
+$boards_sql = "SELECT board_id, board_name, board_type, updated_at FROM Planotajs_Boards 
+            WHERE user_id = ? AND is_deleted = 0 
+            ORDER BY updated_at DESC";
+$boards_stmt = $connection->prepare($boards_sql);
+$boards_stmt->bind_param("i", $user_id);
+$boards_stmt->execute();
+$boards_result = $boards_stmt->get_result();
+
+// Create empty array for boards
+$boards = [];
+
+// Fetch boards
+while ($board = $boards_result->fetch_assoc()) {
+    // Determine the correct page based on board type
+    switch ($board['board_type']) {
+        case 'kanban':
+            $page = 'kanban.php';
+            break;
+        case 'gantt':
+            $page = 'gantt_chart.php';
+            break;
+        case 'goal-tracker':
+            $page = 'goal_tracker.php';
+            break;
+        default:
+            $page = 'kanban.php'; // Default to kanban
+    }
+    
+    // Calculate how long ago the board was updated
+    $updated_time = strtotime($board['updated_at']);
+    $time_diff = time() - $updated_time;
+    $days_ago = floor($time_diff / (60 * 60 * 24));
+    
+    if ($days_ago == 0) {
+        $last_updated = "Updated today";
+    } elseif ($days_ago == 1) {
+        $last_updated = "Updated yesterday";
+    } else {
+        $last_updated = "Updated $days_ago days ago";
+    }
+    
+    // Add board to array with updated info
+    $boards[] = [
+        'id' => $board['board_id'],
+        'name' => $board['board_name'],
+        'page' => $page,
+        'updated' => $last_updated
+    ];
+}
+$boards_stmt->close();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -118,15 +185,15 @@ if ($hour < 12) {
         <!-- Quick Stats -->
         <div class="mb-8 grid md:grid-cols-3 gap-6">
             <div class="bg-white p-6 rounded-lg shadow-md text-center">
-                <p class="text-lg font-semibold text-[#e63946]">5</p>
+                <p class="text-lg font-semibold text-[#e63946]"><?php echo $board_count; ?></p>
                 <p class="text-gray-600">Total Boards</p>
             </div>
             <div class="bg-white p-6 rounded-lg shadow-md text-center">
-                <p class="text-lg font-semibold text-[#e63946]">12</p>
+                <p class="text-lg font-semibold text-[#e63946]"><?php echo $completed_tasks; ?></p>
                 <p class="text-gray-600">Tasks Completed</p>
             </div>
             <div class="bg-white p-6 rounded-lg shadow-md text-center">
-                <p class="text-lg font-semibold text-[#e63946]">3</p>
+                <p class="text-lg font-semibold text-[#e63946]"><?php echo $upcoming_deadlines; ?></p>
                 <p class="text-gray-600">Upcoming Deadlines</p>
             </div>
         </div>
@@ -143,6 +210,22 @@ if ($hour < 12) {
             <button id="add-board-btn" class="bg-[#e63946] text-white py-2 px-4 rounded-lg font-semibold hover:bg-red-700 transition mb-4">
                 Add Board
             </button>
+            <?php
+            if (count($boards) > 0) {
+                echo "<div class='grid md:grid-cols-3 gap-6'>";
+                foreach ($boards as $board) {
+                    echo "<a href='{$board['page']}?board_id={$board['id']}' class='bg-white p-6 rounded-lg shadow-md hover-scale'>
+                            <h4 class='text-lg font-semibold text-[#e63946] mb-2'>" . htmlspecialchars($board['name']) . "</h4>
+                            <p class='text-gray-600'>" . htmlspecialchars($board['updated']) . "</p>
+                        </a>";
+                }
+                echo "</div>";
+            } else {
+                echo "<div class='col-span-3 text-center p-8 bg-white rounded-lg shadow-md'>
+                        <p class='text-gray-600'>You haven't created any boards yet. Click 'Add Board' to get started!</p>
+                    </div>";
+            }
+            ?>
             <!-- Modal -->
             <div id="add-board-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center">
                 <div class="bg-white p-6 rounded-lg shadow-lg w-96">
@@ -164,23 +247,6 @@ if ($hour < 12) {
                         <button id="create-board" class="bg-[#e63946] text-white py-2 px-4 rounded-lg font-semibold hover:bg-red-700 transition">Create</button>
                     </div>
                 </div>
-            </div>
-
-            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <?php
-                // Example data for user boards
-                $boards = [
-                    ["Project Alpha", "kanban.php"],
-                    ["Marketing Plan", "gantt_chart.php"],
-                    ["Personal Goals", "goal_tracker.php"]
-                ];
-                foreach ($boards as $board) {
-                    echo "<a href='{$board[1]}' class='bg-white p-6 rounded-lg shadow-md hover-scale'>
-                            <h4 class='text-lg font-semibold text-[#e63946] mb-2'>{$board[0]}</h4>
-                            <p class='text-gray-600'>Last updated 2 days ago</p>
-                          </a>";
-                }
-                ?>
             </div>
         </div>
 
