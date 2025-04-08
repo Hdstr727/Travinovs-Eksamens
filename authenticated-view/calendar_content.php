@@ -149,25 +149,28 @@ $stmt->close();
             if (isset($tasks_by_date[$date])) {
                 foreach ($tasks_by_date[$date] as $task) {
                     $priority_class = '';
-                    switch ($task['priority']) {
-                        case 3:
+                    // Handle text-based priority values
+                    switch (strtolower($task['priority'])) {
+                        case 'high':
                             $priority_class = 'priority-high';
                             break;
-                        case 2:
+                        case 'medium':
                             $priority_class = 'priority-medium';
                             break;
-                        case 1:
+                        case 'low':
                             $priority_class = 'priority-low';
                             break;
+                        default:
+                            $priority_class = '';  // Default case for when priority is empty or null
                     }
                     
                     $status_class = ($task['is_completed'] == 1) ? 'task-completed' : '';
                     
                     echo '<div class="task-item ' . $priority_class . ' ' . $status_class . '" 
-                              data-task-id="' . $task['task_id'] . '" 
-                              onclick="showTaskDetails(this, event)">
-                              <span class="truncate block">' . htmlspecialchars($task['task_name']) . '</span>
-                          </div>';
+                            data-task-id="' . $task['task_id'] . '" 
+                            onclick="showTaskDetails(this, event)">
+                            <span class="truncate block">' . htmlspecialchars($task['task_name']) . '</span>
+                        </div>';
                 }
             }
             
@@ -226,45 +229,51 @@ $stmt->close();
     let currentTaskId = null;
     
     function showTaskDetails(element, event) {
-        event.preventDefault();
-        event.stopPropagation();
-        
-        const taskId = element.dataset.taskId;
-        currentTaskId = taskId;
-        
-        // Position the popup
-        const rect = element.getBoundingClientRect();
-        taskPopup.style.left = `${rect.left}px`;
-        taskPopup.style.top = `${rect.bottom + window.scrollY + 5}px`;
-        
-        // Fetch task details via AJAX
-        fetch(`get_task_details.php?task_id=${taskId}`)
-            .then(response => response.json())
-            .then(task => {
-                document.getElementById('popupTaskName').textContent = task.task_name;
-                document.getElementById('popupTaskDescription').textContent = task.task_description || 'Nav apraksta';
-                document.getElementById('popupTaskDueDate').textContent = formatDate(task.due_date);
+    event.preventDefault();
+    event.stopPropagation();
+    
+    const taskId = element.dataset.taskId;
+    currentTaskId = taskId;
+    
+    // Position the popup
+    const rect = element.getBoundingClientRect();
+    taskPopup.style.left = `${rect.left}px`;
+    taskPopup.style.top = `${rect.bottom + window.scrollY + 5}px`;
+    
+    // Fetch task details via AJAX
+    fetch(`get_task_details.php?task_id=${taskId}`)
+        .then(response => response.json())
+        .then(task => {
+            document.getElementById('popupTaskName').textContent = task.task_name;
+            document.getElementById('popupTaskDescription').textContent = task.task_description || 'Nav apraksta';
+            document.getElementById('popupTaskDueDate').textContent = formatDate(task.due_date);
+            
+            // Handle text-based priority values
+            let priorityText = 'Nav norādīta';
+            if (task.priority) {
+                // Convert to lowercase for case-insensitive comparison
+                const priority = task.priority.toLowerCase();
                 
-                let priorityText = '';
-                switch(parseInt(task.priority)) {
-                    case 3: priorityText = 'Augsta'; break;
-                    case 2: priorityText = 'Vidēja'; break;
-                    case 1: priorityText = 'Zema'; break;
-                    default: priorityText = 'Nav norādīta';
+                switch(priority) {
+                    case 'high': priorityText = 'Augsta'; break;
+                    case 'medium': priorityText = 'Vidēja'; break;
+                    case 'low': priorityText = 'Zema'; break;
                 }
-                document.getElementById('popupTaskPriority').textContent = priorityText;
-                
-                document.getElementById('popupTaskStatus').textContent = task.is_completed == 1 ? 'Pabeigts' : task.task_status;
-                document.getElementById('popupTaskBoard').textContent = task.board_name;
-                
-                document.getElementById('popupEditLink').href = `edit_task.php?task_id=${taskId}`;
-                document.getElementById('popupViewLink').href = `kanban.php?board_id=${task.board_id}`;
-                
-                taskPopup.style.display = 'block';
-            })
-            .catch(error => {
-                console.error('Error fetching task details:', error);
-            });
+            }
+            
+            document.getElementById('popupTaskPriority').textContent = priorityText;
+            
+            document.getElementById('popupTaskStatus').textContent = task.is_completed == 1 ? 'Pabeigts' : task.task_status;
+            document.getElementById('popupTaskBoard').textContent = task.board_name || 'Nav norādīts';
+            
+            document.getElementById('popupEditLink').href = `edit_task.php?task_id=${taskId}`;
+            document.getElementById('popupViewLink').href = `kanban.php?board_id=${task.board_id}`;
+            
+            taskPopup.style.display = 'block';
+        })
+        .catch(error => {
+            console.error('Error fetching task details:', error);
+        });
     }
     
     function hideTaskPopup() {
