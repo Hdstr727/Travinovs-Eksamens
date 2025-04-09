@@ -20,11 +20,14 @@ $result = $stmt->get_result();
 $user = $result->fetch_assoc();
 $stmt->close();
 
-
-// Get board count
-$board_count_sql = "SELECT COUNT(*) as count FROM Planotajs_Boards WHERE user_id = ? AND is_deleted = 0";
+// Get board count (both owned and shared)
+$board_count_sql = "SELECT 
+                    (SELECT COUNT(*) FROM Planotajs_Boards WHERE user_id = ? AND is_deleted = 0) +
+                    (SELECT COUNT(*) FROM Planotajs_Collaborators WHERE user_id = ? AND board_id IN 
+                        (SELECT board_id FROM Planotajs_Boards WHERE is_deleted = 0)
+                    ) as count";
 $board_stmt = $connection->prepare($board_count_sql);
-$board_stmt->bind_param("i", $user_id);
+$board_stmt->bind_param("ii", $user_id, $user_id);
 $board_stmt->execute();
 $board_count = $board_stmt->get_result()->fetch_assoc()['count'];
 $board_stmt->close();
@@ -33,7 +36,6 @@ $board_stmt->close();
 // You would implement these when you have the tasks table
 $completed_tasks = 0;
 $upcoming_deadlines = 0;
-
 
 // Fetch user information from the session
 $username = $user['username'] ?? $_SESSION['username'];
@@ -55,20 +57,20 @@ if ($hour < 12) {
     $greeting = "Good Evening";
 }
 
-// Fetch user's boards from database - MOVED UP FROM BELOW
-$boards_sql = "SELECT board_id, board_name, board_type, updated_at FROM Planotajs_Boards 
-            WHERE user_id = ? AND is_deleted = 0 
-            ORDER BY updated_at DESC";
-$boards_stmt = $connection->prepare($boards_sql);
-$boards_stmt->bind_param("i", $user_id);
-$boards_stmt->execute();
-$boards_result = $boards_stmt->get_result();
-
 // Create empty array for boards
 $boards = [];
 
-// Fetch boards
-while ($board = $boards_result->fetch_assoc()) {
+// Fetch user's own boards from database
+$own_boards_sql = "SELECT board_id, board_name, board_type, updated_at, 'owner' as access_type 
+                  FROM Planotajs_Boards 
+                  WHERE user_id = ? AND is_deleted = 0";
+$own_boards_stmt = $connection->prepare($own_boards_sql);
+$own_boards_stmt->bind_param("i", $user_id);
+$own_boards_stmt->execute();
+$own_boards_result = $own_boards_stmt->get_result();
+
+// Add owner's boards to the boards array
+while ($board = $own_boards_result->fetch_assoc()) {
     // Determine the correct page based on board type
     switch ($board['board_type']) {
         case 'kanban':
@@ -102,10 +104,70 @@ while ($board = $boards_result->fetch_assoc()) {
         'id' => $board['board_id'],
         'name' => $board['board_name'],
         'page' => $page,
-        'updated' => $last_updated
+        'updated' => $last_updated,
+        'access_type' => $board['access_type']
     ];
 }
-$boards_stmt->close();
+$own_boards_stmt->close();
+
+// Fetch shared boards the user has access to
+$shared_boards_sql = "SELECT b.board_id, b.board_name, b.board_type, b.updated_at, 
+                     c.permission_level as access_type, u.username as owner_name
+                     FROM Planotajs_Collaborators c
+                     JOIN Planotajs_Boards b ON c.board_id = b.board_id
+                     JOIN Planotajs_Users u ON b.user_id = u.user_id
+                     WHERE c.user_id = ? AND b.is_deleted = 0";
+$shared_boards_stmt = $connection->prepare($shared_boards_sql);
+$shared_boards_stmt->bind_param("i", $user_id);
+$shared_boards_stmt->execute();
+$shared_boards_result = $shared_boards_stmt->get_result();
+
+// Add shared boards to the boards array
+while ($board = $shared_boards_result->fetch_assoc()) {
+    // Determine the correct page based on board type
+    switch ($board['board_type']) {
+        case 'kanban':
+            $page = 'kanban.php';
+            break;
+        case 'gantt':
+            $page = 'gantt_chart.php';
+            break;
+        case 'goal-tracker':
+            $page = 'goal_tracker.php';
+            break;
+        default:
+            $page = 'kanban.php'; // Default to kanban
+    }
+    
+    // Calculate how long ago the board was updated
+    $updated_time = strtotime($board['updated_at']);
+    $time_diff = time() - $updated_time;
+    $days_ago = floor($time_diff / (60 * 60 * 24));
+    
+    if ($days_ago == 0) {
+        $last_updated = "Updated today";
+    } elseif ($days_ago == 1) {
+        $last_updated = "Updated yesterday";
+    } else {
+        $last_updated = "Updated $days_ago days ago";
+    }
+    
+    // Add board to array with updated info
+    $boards[] = [
+        'id' => $board['board_id'],
+        'name' => $board['board_name'],
+        'page' => $page,
+        'updated' => $last_updated,
+        'access_type' => $board['access_type'],
+        'owner_name' => $board['owner_name']
+    ];
+}
+$shared_boards_stmt->close();
+
+// Sort all boards by last updated (most recent first)
+usort($boards, function($a, $b) {
+    return strcmp($b['updated'], $a['updated']);
+});
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -138,6 +200,11 @@ $boards_stmt->close();
         .dark-mode #add-board-modal {
             background-color: #2d3748;
             color: #e2e8f0;
+        }
+        .badge {
+            font-size: 0.65rem;
+            padding: 0.15rem 0.5rem;
+            border-radius: 9999px;
         }
     </style>
 </head>
@@ -214,8 +281,26 @@ $boards_stmt->close();
             if (count($boards) > 0) {
                 echo "<div class='grid md:grid-cols-3 gap-6'>";
                 foreach ($boards as $board) {
+                    // Set badge color based on access level
+                    $badgeColor = "bg-blue-100 text-blue-800"; // Default for shared boards
+                    $badgeText = isset($board['owner_name']) ? "Shared by " . htmlspecialchars($board['owner_name']) : "Shared"; 
+                    
+                    if (!isset($board['owner_name'])) {
+                        $badgeColor = "bg-green-100 text-green-800";
+                        $badgeText = "Owner";
+                    } elseif ($board['access_type'] == 'editor') {
+                        $badgeColor = "bg-yellow-100 text-yellow-800";
+                        $badgeText = "Editor • " . $badgeText;
+                    } elseif ($board['access_type'] == 'viewer') {
+                        $badgeColor = "bg-gray-100 text-gray-800";
+                        $badgeText = "Viewer • " . $badgeText;
+                    }
+                    
                     echo "<a href='{$board['page']}?board_id={$board['id']}' class='bg-white p-6 rounded-lg shadow-md hover-scale'>
-                            <h4 class='text-lg font-semibold text-[#e63946] mb-2'>" . htmlspecialchars($board['name']) . "</h4>
+                            <div class='flex justify-between items-start mb-2'>
+                                <h4 class='text-lg font-semibold text-[#e63946]'>" . htmlspecialchars($board['name']) . "</h4>
+                                <span class='badge $badgeColor'>" . $badgeText . "</span>
+                            </div>
                             <p class='text-gray-600'>" . htmlspecialchars($board['updated']) . "</p>
                         </a>";
                 }

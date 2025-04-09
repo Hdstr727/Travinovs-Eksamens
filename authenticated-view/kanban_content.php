@@ -1,4 +1,5 @@
 <?php
+// kanban_content.php
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
@@ -16,16 +17,23 @@ $board_name = "Kanban Board";
 $board_columns = [];
 
 if ($board_id > 0) {
-    // Get board name
-    $board_sql = "SELECT board_name FROM Planotajs_Boards WHERE board_id = ? AND user_id = ? AND is_deleted = 0";
-    $board_stmt = $connection->prepare($board_sql);
-    $board_stmt->bind_param("ii", $board_id, $user_id);
-    $board_stmt->execute();
-    $board_result = $board_stmt->get_result();
+    // Check if user has access to this board (either as owner or collaborator)
+    $access_sql = "SELECT b.board_id, b.board_name, b.user_id 
+                  FROM Planotajs_Boards b
+                  LEFT JOIN Planotajs_Collaborators c ON b.board_id = c.board_id 
+                  WHERE b.board_id = ? 
+                  AND (b.user_id = ? OR c.user_id = ?)
+                  AND b.is_deleted = 0";
     
-    if ($board_result->num_rows > 0) {
-        $board = $board_result->fetch_assoc();
+    $access_stmt = $connection->prepare($access_sql);
+    $access_stmt->bind_param("iii", $board_id, $user_id, $user_id);
+    $access_stmt->execute();
+    $access_result = $access_stmt->get_result();
+    
+    if ($access_result->num_rows > 0) {
+        $board = $access_result->fetch_assoc();
         $board_name = $board['board_name'];
+        $is_owner = ($board['user_id'] == $user_id);
         
         // Fetch columns (we'll use task_status as columns)
         $columns_sql = "SELECT DISTINCT task_status FROM Planotajs_Tasks 
@@ -64,19 +72,50 @@ if ($board_id > 0) {
         $tasks_stmt->close();
         $columns_stmt->close();
     } else {
-        // Board not found or doesn't belong to user
+        // Board not found or user doesn't have permission
         echo '<div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6" role="alert">
                 <p>Board not found or you don\'t have permission to access it.</p>
               </div>';
     }
-    $board_stmt->close();
+    $access_stmt->close();
+}
+
+// Fetch user's permission level for this board
+$permission_level = 'read'; // Default to read-only
+if ($board_id > 0) {
+    // Check if user is the owner (full permissions)
+    $owner_check_sql = "SELECT user_id FROM Planotajs_Boards WHERE board_id = ? AND user_id = ?";
+    $owner_check_stmt = $connection->prepare($owner_check_sql);
+    $owner_check_stmt->bind_param("ii", $board_id, $user_id);
+    $owner_check_stmt->execute();
+    $owner_result = $owner_check_stmt->get_result();
+    
+    if ($owner_result->num_rows > 0) {
+        $permission_level = 'owner'; // User is the owner
+    } else {
+        // Check collaborator permission level
+        $collab_sql = "SELECT permission_level FROM Planotajs_Collaborators 
+                      WHERE board_id = ? AND user_id = ?";
+        $collab_stmt = $connection->prepare($collab_sql);
+        $collab_stmt->bind_param("ii", $board_id, $user_id);
+        $collab_stmt->execute();
+        $collab_result = $collab_stmt->get_result();
+        
+        if ($collab_result->num_rows > 0) {
+            $collab = $collab_result->fetch_assoc();
+            $permission_level = $collab['permission_level'];
+        }
+        $collab_stmt->close();
+    }
+    $owner_check_stmt->close();
 }
 
 // Convert the data to JSON for JavaScript to use
 $board_data = [
     'board_id' => $board_id,
     'columns' => isset($columns) ? $columns : [],
-    'tasks' => isset($board_tasks) ? $board_tasks : []
+    'tasks' => isset($board_tasks) ? $board_tasks : [],
+    'permission_level' => $permission_level
 ];
 $board_data_json = json_encode($board_data);
 ?>
@@ -103,16 +142,33 @@ $board_data_json = json_encode($board_data);
         padding: 0.25rem;
         border-radius: 0.25rem;
     }
+    .readonly .add-placeholder, .readonly .task-drag-handle, 
+    .readonly button, .readonly .editable[contenteditable="true"] {
+        display: none;
+    }
+    .permission-badge {
+        background-color: #4A5568;
+        color: white;
+        font-size: 0.75rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 0.25rem;
+        margin-left: 0.5rem;
+    }
 </style>
 
 <div class="flex justify-between items-center border-b pb-6 mb-8">
-    <h2 class="text-3xl font-bold text-[#e63946]"><?= htmlspecialchars($board_name) ?></h2>
+    <div class="flex items-center">
+        <h2 class="text-3xl font-bold text-[#e63946]"><?= htmlspecialchars($board_name) ?></h2>
+        <?php if (isset($permission_level) && $permission_level != 'owner'): ?>
+            <span class="permission-badge"><?= ucfirst($permission_level) ?> access</span>
+        <?php endif; ?>
+    </div>
     <a href="index.php" class="bg-[#e63946] text-white py-3 px-6 rounded-lg font-semibold hover:bg-red-700 transition">
         Back to Dashboard
     </a>
 </div>
 
-<div class="flex overflow-x-auto pb-4 space-x-6" id="kanbanBoard">
+<div class="flex overflow-x-auto pb-4 space-x-6 <?= ($permission_level == 'read') ? 'readonly' : '' ?>" id="kanbanBoard">
     <!-- Columns will be added here by JavaScript -->
     <div class="add-placeholder flex-shrink-0 flex items-center justify-center w-80 h-24 cursor-pointer" id="addColumnPlaceholder">
         <div class="text-gray-500 flex flex-col items-center">
@@ -180,6 +236,11 @@ $board_data_json = json_encode($board_data);
     
     // Add column when clicking the placeholder
     $('#addColumnPlaceholder').on('click', function() {
+        if (boardData.permission_level === 'read') {
+            alert('You have read-only access to this board.');
+            return;
+        }
+        
         const columnName = prompt("Enter column name:");
         if (columnName) {
             addColumn(columnName);
@@ -234,7 +295,7 @@ function addColumn(columnName, columnStatus = '') {
     const columnHtml = `
         <div class="flex-shrink-0 bg-gray-50 p-6 rounded-lg shadow-md w-80" id="${columnId}" data-status="${status}">
             <div class="flex justify-between items-center mb-4">
-                <h4 class="text-xl font-semibold text-[#e63946] editable" contenteditable="true">${columnName}</h4>
+                <h4 class="text-xl font-semibold text-[#e63946] editable" contenteditable="${boardData.permission_level !== 'read'}">${columnName}</h4>
                 <div class="flex space-x-2">
                     <button class="text-gray-500 hover:text-gray-700" onclick="editColumn('${columnId}')">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -314,11 +375,23 @@ function addColumn(columnName, columnStatus = '') {
 }
 
 function editColumn(columnId) {
+    // Only allow editing if user has proper permissions
+    if (boardData.permission_level === 'read') {
+        alert('You have read-only access to this board.');
+        return;
+    }
+    
     // Focus on the column title to make it editable
     $(`#${columnId} h4`).focus();
 }
 
 function removeColumn(columnId) {
+    // Only allow deleting if user has proper permissions
+    if (boardData.permission_level === 'read' || boardData.permission_level === 'write') {
+        alert('You don\'t have permission to delete columns.');
+        return;
+    }
+    
     if (confirm('Are you sure you want to delete this column and all its tasks?')) {
         const status = $(`#${columnId}`).data('status');
         
@@ -358,6 +431,11 @@ function removeColumn(columnId) {
 }
 
 function initSortable() {
+    // Only make sortable if user has sufficient permissions
+    if (boardData.permission_level === 'read') {
+        return;
+    }
+    
     $('.task-list').sortable({
         connectWith: '.task-list',
         placeholder: 'bg-gray-300 p-4 rounded-lg my-2',
@@ -374,6 +452,11 @@ function initSortable() {
 }
 
 function updateTaskPositions() {
+    // Only allow updates if user has proper permissions
+    if (boardData.permission_level === 'read') {
+        return;
+    }
+    
     // Go through each column
     $('.task-list').each(function() {
         const columnId = $(this).attr('id').replace('tasks-', '');
@@ -409,6 +492,21 @@ function updateTaskPositions() {
 }
 
 function openTaskModal(columnId, taskId = null) {
+    // Check permissions
+    if (boardData.permission_level === 'read') {
+        // If read-only and trying to view existing task
+        if (taskId) {
+            // Allow viewing but disable editing
+            const taskIdNum = taskId.replace('task-', '');
+            const $task = $(`#task-${taskIdNum}`);
+            
+            alert(`Task: ${$task.find('.task-title').text()}\n\nDescription: ${$task.find('.task-description').text()}\n\nDue Date: ${$task.data('due-date')}\n\nPriority: ${$task.data('priority')}`);
+        } else {
+            alert('You have read-only access to this board.');
+        }
+        return;
+    }
+    
     $('#taskColumnId').val(columnId);
     
     if (taskId) {
@@ -441,6 +539,13 @@ function closeModal() {
 }
 
 function saveTask() {
+    // Check permissions first
+    if (boardData.permission_level === 'read') {
+        alert('You have read-only access to this board.');
+        closeModal();
+        return;
+    }
+    
     const columnId = $('#taskColumnId').val();
     const taskId = $('#taskId').val();
     const title = $('#taskTitle').val().trim();
