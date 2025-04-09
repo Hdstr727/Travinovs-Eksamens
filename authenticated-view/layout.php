@@ -5,6 +5,14 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
+if (isset($_GET['board_id'])) {
+    $_SESSION['last_board_id'] = $_GET['board_id'];
+}
+// Create the Kanban URL with the last board ID if available
+$kanban_url = "kanban.php";
+if (isset($_SESSION['last_board_id'])) {
+    $kanban_url .= "?board_id=" . $_SESSION['last_board_id'];
+}
 // Include database connection
 require_once '../admin/database/connection.php';
 
@@ -43,7 +51,7 @@ if (!empty($user['profile_picture']) && file_exists($user['profile_picture'])) {
         <h1 class="text-xl font-bold text-[#e63946]">Plānotājs+</h1>
         <nav class="flex gap-4">
             <a href="index.php" class="text-gray-700 hover:text-[#e63946]">Galvenā</a>
-            <a href="kanban.php" class="text-gray-700 hover:text-[#e63946]">Kanban</a>
+            <a href="<?= $kanban_url ?>" class="text-gray-700 hover:text-[#e63946]">Kanban</a>
             <a href="calendar.php" class="text-gray-700 hover:text-[#e63946]">Kalendārs</a>
             <a href="project_settings.php" class="text-gray-700 hover:text-[#e63946]">Iestatījumi</a>
         </nav>
