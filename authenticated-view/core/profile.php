@@ -1,12 +1,13 @@
 <?php
 session_start();
+require_once dirname(dirname(dirname(__FILE__))) . '/config.php';
 if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
+    header("Location:" . LOGIN_URL);
     exit();
 }
 
 // Include database connection
-require '../admin/database/connection.php';
+require '../../admin/database/connection.php';
 
 // Get user info from database
 $user_id = $_SESSION['user_id'];

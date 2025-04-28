@@ -2,7 +2,7 @@
 // send_invitation.php
 session_start();
 if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
+    header("Location: ../authenticated-view/core/login.php");
     exit();
 }
 

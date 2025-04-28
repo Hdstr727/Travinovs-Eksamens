@@ -1,5 +1,5 @@
 <?php
 $title = "Kalendārs - Plānotājs+";
-$content = "calendar_content.php";
-include "layout.php";
+$content = "contents/calendar_content.php";
+include "core/layout.php";
 ?>

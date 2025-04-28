@@ -3,7 +3,7 @@ session_start();
 
 // Check if the user is logged in
 if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
+    header("Location: core/login.php");
     exit();
 }
 
@@ -76,12 +76,6 @@ while ($board = $own_boards_result->fetch_assoc()) {
         case 'kanban':
             $page = 'kanban.php';
             break;
-        case 'gantt':
-            $page = 'gantt_chart.php';
-            break;
-        case 'goal-tracker':
-            $page = 'goal_tracker.php';
-            break;
         default:
             $page = 'kanban.php'; // Default to kanban
     }
@@ -128,12 +122,6 @@ while ($board = $shared_boards_result->fetch_assoc()) {
     switch ($board['board_type']) {
         case 'kanban':
             $page = 'kanban.php';
-            break;
-        case 'gantt':
-            $page = 'gantt_chart.php';
-            break;
-        case 'goal-tracker':
-            $page = 'goal_tracker.php';
             break;
         default:
             $page = 'kanban.php'; // Default to kanban
@@ -235,11 +223,11 @@ usort($boards, function($a, $b) {
                     </button>
                     <div id="profile-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-md p-4">
                         <p class="text-sm text-gray-600"><?php echo htmlspecialchars($username); ?></p>
-                        <a href="profile.php" class="block mt-2 text-[#e63946] hover:underline">View Profile</a>
+                        <a href="core/profile.php" class="block mt-2 text-[#e63946] hover:underline">View Profile</a>
                     </div>
                 </div>
                 <!-- Logout Button -->
-                <a href="logout.php" class="bg-[#e63946] text-white py-2 px-4 rounded-lg font-semibold hover:bg-red-700 transition">Logout</a>
+                <a href="core/logout.php" class="bg-[#e63946] text-white py-2 px-4 rounded-lg font-semibold hover:bg-red-700 transition">Logout</a>
             </div>
         </div>
 
@@ -351,7 +339,7 @@ usort($boards, function($a, $b) {
                 </div>
             </div>
         </div>
-
+        <?php echo "Debug - Avatar path: " . $user_avatar; ?>
         <!-- Recent Activity Section -->
         <div class="mb-8">
             <h3 class="text-xl font-semibold text-gray-700 mb-4">Recent Activity</h3>

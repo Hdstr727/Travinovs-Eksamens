@@ -2,7 +2,7 @@
 // project_settings_content.php
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
+    header("Location: ../authenticated-view/core/login.php");
     exit();
 }
 

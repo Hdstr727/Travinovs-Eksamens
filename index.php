@@ -32,7 +32,7 @@
                     <li><a href="#features" class="text-lg font-semibold hover:underline">Funkcijas</a></li>
                     <li><a href="#testimonials" class="text-lg font-semibold hover:underline">Atsauksmes</a></li>
                     <li><a href="#contact" class="text-lg font-semibold hover:underline">Kontakti</a></li>
-                    <li><a href="https://kristovskis.lv/3pt1/travinovs/Travinovs-Eksamens/authenticated-view/login.php" class="bg-white text-red-600 py-2 px-6 rounded-lg hover:bg-red-100">Pieteikties</a></li>
+                    <li><a href="https://kristovskis.lv/3pt1/travinovs/Travinovs-Eksamens/authenticated-view/core/login.php" class="bg-white text-red-600 py-2 px-6 rounded-lg hover:bg-red-100">Pieteikties</a></li>
                 </ul>
             </nav>
         </div>
@@ -43,7 +43,7 @@
         <div class="container mx-auto px-4">
             <h2 class="text-3xl font-semibold mb-4" style="color: #e63946;">Organizējiet savu darbu vienkārši un efektīvi!</h2>
             <p class="text-xl text-gray-600 mb-8">Plānotājs+ palīdz jums pārvaldīt uzdevumus, projektus un komandas darbu vienuviet.</p>
-            <a href="https://kristovskis.lv/3pt1/travinovs/Travinovs-Eksamens/authenticated-view/login.php" class="text-white py-3 px-8 rounded-lg text-xl font-semibold" style="background-color: #e63946; hover:bg-opacity-80;">Sākt Tagad</a>
+            <a href="https://kristovskis.lv/3pt1/travinovs/Travinovs-Eksamens/authenticated-view/core/login.php" class="text-white py-3 px-8 rounded-lg text-xl font-semibold" style="background-color: #e63946; hover:bg-opacity-80;">Sākt Tagad</a>
         </div>
     </section>
 

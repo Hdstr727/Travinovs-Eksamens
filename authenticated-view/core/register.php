@@ -2,7 +2,7 @@
 session_start(); // Start session for user login management
 
 // Include the database connection
-require '../admin/database/connection.php';
+require '../../admin/database/connection.php';
 
 // Initialize an error message
 $error = "";
@@ -73,7 +73,7 @@ $connection->close();
                     count--;
                     setTimeout(countdown, 1000);
                 } else {
-                    window.location.href = 'index.php';
+                    window.location.href = '../index.php';
                 }
             }
             window.onload = countdown;

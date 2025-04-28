@@ -2,7 +2,7 @@
 session_start(); // Start session for user login management
 
 // Include the database connection
-require '../admin/database/connection.php';
+require '../../admin/database/connection.php';
 
 // Initialize an error message
 $error = "";
@@ -30,7 +30,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $_SESSION['username'] = $user['username'];
 
             // Redirect to the main page
-            header("Location: index.php");
+            header("Location: ../index.php");
             exit();
         } else {
             $error = "Incorrect username or password.";

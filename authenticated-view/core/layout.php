@@ -1,7 +1,10 @@
 <?php
+
 session_start();
+
+require_once dirname(dirname(dirname(__FILE__))) . '/config.php';
 if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
+    header("Location:" . LOGIN_URL);
     exit();
 }
 
@@ -13,8 +16,9 @@ $kanban_url = "kanban.php";
 if (isset($_SESSION['last_board_id'])) {
     $kanban_url .= "?board_id=" . $_SESSION['last_board_id'];
 }
-// Include database connection
-require_once '../admin/database/connection.php';
+
+$root_path = $_SERVER['DOCUMENT_ROOT'] . '/3pt1/travinovs/Travinovs-Eksamens/';
+require_once $root_path . 'admin/database/connection.php';
 
 // Get user info from database including profile picture
 $user_id = $_SESSION['user_id'];
@@ -56,7 +60,7 @@ if (!empty($user['profile_picture']) && file_exists($user['profile_picture'])) {
             <a href="project_settings.php" class="text-gray-700 hover:text-[#e63946]">Iestatījumi</a>
         </nav>
         <div class="flex items-center gap-4">
-            <a href="profile.php" class="relative group">
+            <a href="core/profile.php" class="relative group">
                 <img src="<?= $user_avatar ?>" class="w-10 h-10 rounded-full border group-hover:opacity-90 transition-opacity" alt="Avatar">
                 <div class="absolute opacity-0 group-hover:opacity-100 transition-opacity text-xs bg-black text-white px-2 py-1 rounded -bottom-8 left-1/2 transform -translate-x-1/2 whitespace-nowrap">
                     Rediģēt profilu
