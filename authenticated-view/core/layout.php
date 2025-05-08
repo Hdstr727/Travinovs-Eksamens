@@ -1,5 +1,5 @@
 <?php
-
+// core/layout.php
 session_start();
 
 require_once dirname(dirname(dirname(__FILE__))) . '/config.php';
@@ -7,6 +7,7 @@ if (!isset($_SESSION['user_id'])) {
     header("Location:" . LOGIN_URL);
     exit();
 }
+
 
 if (isset($_GET['board_id'])) {
     $_SESSION['last_board_id'] = $_GET['board_id'];
@@ -39,6 +40,11 @@ if (!empty($user['profile_picture']) && file_exists($user['profile_picture'])) {
 } else {
     $user_avatar = "https://ui-avatars.com/api/?name=" . urlencode($username) . "&background=e63946&color=fff";
 }
+
+$chat_url = "chat.php";
+if (isset($_SESSION['last_board_id'])) {
+    $chat_url .= "?board_id=" . $_SESSION['last_board_id'];
+}
 ?>
 <!DOCTYPE html>
 <html lang="lv">
@@ -46,6 +52,7 @@ if (!empty($user['profile_picture']) && file_exists($user['profile_picture'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= $title ?? "Plānotājs+" ?></title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col">
@@ -58,6 +65,7 @@ if (!empty($user['profile_picture']) && file_exists($user['profile_picture'])) {
             <a href="<?= $kanban_url ?>" class="text-gray-700 hover:text-[#e63946]">Kanban</a>
             <a href="calendar.php" class="text-gray-700 hover:text-[#e63946]">Kalendārs</a>
             <a href="project_settings.php" class="text-gray-700 hover:text-[#e63946]">Iestatījumi</a>
+            <a href="<?= $chat_url ?>" class="text-gray-700 hover:text-[#e63946]">Čats</a>
         </nav>
         <div class="flex items-center gap-4">
             <a href="core/profile.php" class="relative group">
