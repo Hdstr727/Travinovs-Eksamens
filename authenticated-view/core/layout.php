@@ -34,9 +34,18 @@ $stmt->close();
 // Set username from database or session
 $username = $user['username'] ?? $_SESSION['username'];
 
-// Check if user has a profile picture, otherwise use the UI Avatars API
-if (!empty($user['profile_picture']) && file_exists($user['profile_picture'])) {
-    $user_avatar = $user['profile_picture'];
+// Get the path stored in the database (e.g., "uploads/profile_pictures/image.jpg")
+$db_profile_picture_path = $user['profile_picture'];
+
+// For file_exists(), construct the full server path.
+// __DIR__ is the directory of layout.php (authenticated-view/core/)
+$full_server_path_to_picture = __DIR__ . '/' . $db_profile_picture_path;
+
+if (!empty($db_profile_picture_path) && file_exists($full_server_path_to_picture)) {
+    // For the <img> src attribute, since layout.php is included by pages
+    // in authenticated-view/ (one level above core/), we need to prepend 'core/'
+    // to the path stored in the DB.
+    $user_avatar = 'core/' . $db_profile_picture_path;
 } else {
     $user_avatar = "https://ui-avatars.com/api/?name=" . urlencode($username) . "&background=e63946&color=fff";
 }

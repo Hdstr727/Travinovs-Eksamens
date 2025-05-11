@@ -1,6 +1,5 @@
 <?php
 //ajax_handlers/get_notifications.php
-<?php
 session_start();
 require_once '../../admin/database/connection.php'; // Adjust path as needed
 

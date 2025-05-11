@@ -37,11 +37,23 @@ $board_stmt->close();
 $completed_tasks = 0;
 $upcoming_deadlines = 0;
 
-$username = $user['username'] ?? ($_SESSION['username'] ?? 'User'); // Fallback if session username is also not set
+$username = $user['username'] ?? ($_SESSION['username'] ?? 'User');
 
-// Check if user has a profile picture, otherwise use the UI Avatars API
-if (!empty($user['profile_picture']) && file_exists($user['profile_picture'])) {
-    $user_avatar = $user['profile_picture'];
+
+$db_profile_picture_path = $user['profile_picture'] ?? null;
+
+
+$full_server_path_to_picture = null;
+if ($db_profile_picture_path) {
+  
+    $full_server_path_to_picture = __DIR__ . '/core/' . $db_profile_picture_path;
+   
+}
+
+if (!empty($db_profile_picture_path) && $full_server_path_to_picture && file_exists($full_server_path_to_picture)) {
+   
+    $user_avatar = 'core/' . $db_profile_picture_path;
+    
 } else {
     $user_avatar = "https://ui-avatars.com/api/?name=" . urlencode($username) . "&background=e63946&color=fff";
 }
