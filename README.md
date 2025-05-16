@@ -1,6 +1,6 @@
-# Plānotājs+ Projekts
+# Planner+ Projekts
 
-**Plānotājs+** ir tīmekļa lietotne projektu pārvaldībai un laika uzskaitei, kas izstrādāta, izmantojot HTML, Tailwind CSS, PHP, MySQL un jQuery. Lietotne ļauj lietotājiem pieteikties, pārvaldīt uzdevumus un sekot līdzi produktivitātei.
+**Planner+** ir tīmekļa lietotne projektu pārvaldībai un laika uzskaitei, kas izstrādāta, izmantojot HTML, Tailwind CSS, PHP, MySQL un jQuery. Lietotne ļauj lietotājiem pieteikties, pārvaldīt uzdevumus un sekot līdzi produktivitātei.
 
 ## Funkcijas
 
