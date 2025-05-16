@@ -84,7 +84,7 @@ if (isset($_SESSION['last_board_id'])) {
                 </div>
             </a>
             <span class="font-semibold"><?= $username ?></span>
-            <a href="logout.php" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-700">Iziet</a>
+            <a href="core/logout.php" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-700">Logout</a>
         </div>
     </header>
     <!-- Kontents -->
