@@ -225,7 +225,6 @@ $stmt->close();
             </div>
         </div>
         <div class="mt-4 flex justify-end">
-            <a id="popupEditLink" href="#" class="text-blue-600 hover:underline mr-4">Edit</a>
             <a id="popupViewLink" href="#" class="text-blue-600 hover:underline">View on Board</a>
         </div>
     </div>
@@ -300,8 +299,6 @@ $stmt->close();
                 document.getElementById('popupTaskStatus').textContent = statusText;
 
                 document.getElementById('popupTaskBoard').textContent = task.board_name || 'Not specified';
-                
-                document.getElementById('popupEditLink').href = `edit_task.php?task_id=${taskId}`;
                 document.getElementById('popupViewLink').href = `kanban.php?board_id=${task.board_id}`;
                 
                 // taskPopup.style.display = 'block'; // Already set above
