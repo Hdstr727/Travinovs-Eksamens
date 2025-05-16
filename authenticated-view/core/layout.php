@@ -68,13 +68,13 @@ if (isset($_SESSION['last_board_id'])) {
    
     <!-- Šapka -->
     <header class="bg-white shadow-md p-4 flex justify-between items-center">
-        <h1 class="text-xl font-bold text-[#e63946]">Plānotājs+</h1>
+        <h1 class="text-xl font-bold text-[#e63946]">Planner+</h1>
         <nav class="flex gap-4">
-            <a href="index.php" class="text-gray-700 hover:text-[#e63946]">Galvenā</a>
+            <a href="index.php" class="text-gray-700 hover:text-[#e63946]">Dashboard</a>
             <a href="<?= $kanban_url ?>" class="text-gray-700 hover:text-[#e63946]">Kanban</a>
-            <a href="calendar.php" class="text-gray-700 hover:text-[#e63946]">Kalendārs</a>
-            <a href="project_settings.php" class="text-gray-700 hover:text-[#e63946]">Iestatījumi</a>
-            <a href="<?= $chat_url ?>" class="text-gray-700 hover:text-[#e63946]">Čats</a>
+            <a href="calendar.php" class="text-gray-700 hover:text-[#e63946]">Calendar</a>
+            <a href="project_settings.php" class="text-gray-700 hover:text-[#e63946]">Settings</a>
+            <a href="<?= $chat_url ?>" class="text-gray-700 hover:text-[#e63946]">Chat</a>
         </nav>
         <div class="flex items-center gap-4">
             <a href="core/profile.php" class="relative group">
@@ -93,7 +93,7 @@ if (isset($_SESSION['last_board_id'])) {
     </main>
     <!-- Footers -->
     <footer class="bg-gray-200 text-center p-4 text-gray-600">
-        &copy; <?= date("Y") ?> Plānotājs+. Visas tiesības aizsargātas.
+        &copy; <?= date("Y") ?> Planner+. All rights reserved.
     </footer>
 </body>
 </html>

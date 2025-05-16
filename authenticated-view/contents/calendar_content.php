@@ -14,8 +14,17 @@ $first_day = mktime(0, 0, 0, $month, 1, $year);
 $first_day_of_week = date('N', $first_day); // 1 (for Monday) through 7 (for Sunday)
 $days_in_month = date('t', $first_day);
 
-// Get month name
+// Get month name (in Latvian - assuming server locale is Latvian or set appropriately)
+// If server locale is not Latvian, date('F') might return English.
+// Forcing Latvian month name if necessary:
+// $current_locale = setlocale(LC_TIME, 0);
+// setlocale(LC_TIME, 'lv_LV.UTF-8', 'lv_LV', 'latvian');
+// $month_name = strftime('%B', $first_day);
+// setlocale(LC_TIME, $current_locale);
+// Or use a mapping array if setlocale is an issue.
+// For simplicity, we'll use date('F') and assume it's configured for Latvian.
 $month_name = date('F', $first_day);
+
 
 // Get tasks for the current month
 $start_date = date('Y-m-d', $first_day);
@@ -92,16 +101,16 @@ $stmt->close();
 
 <div class="bg-white rounded-lg shadow-md p-6">
     <div class="flex justify-between items-center mb-6">
-        <h2 class="text-2xl font-bold text-gray-800">Uzdevumu kalendārs</h2>
+        <h2 class="text-2xl font-bold text-gray-800">Task Calendar</h2>
         <div class="flex items-center gap-3">
             <a href="?view=day" class="p-2 rounded-lg hover:bg-gray-100 <?= (!isset($_GET['view']) || $_GET['view'] == 'month') ? '' : 'bg-gray-100' ?>">
-                <i class="fas fa-calendar-day"></i> Diena
+                <i class="fas fa-calendar-day"></i> Day
             </a>
             <a href="?view=week" class="p-2 rounded-lg hover:bg-gray-100 <?= (isset($_GET['view']) && $_GET['view'] == 'week') ? 'bg-gray-100' : '' ?>">
-                <i class="fas fa-calendar-week"></i> Nedēļa
+                <i class="fas fa-calendar-week"></i> Week
             </a>
             <a href="?view=month" class="p-2 rounded-lg hover:bg-gray-100 <?= (!isset($_GET['view']) || $_GET['view'] == 'month') ? 'bg-gray-100' : '' ?>">
-                <i class="fas fa-calendar-alt"></i> Mēnesis
+                <i class="fas fa-calendar-alt"></i> Month
             </a>
         </div>
     </div>
@@ -109,26 +118,26 @@ $stmt->close();
     <!-- Month Navigation -->
     <div class="flex justify-between items-center mb-6">
         <a href="?month=<?= $month-1 ?>&year=<?= $year ?>" class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg flex items-center gap-1">
-            <i class="fas fa-chevron-left"></i> Iepriekšējais
+            <i class="fas fa-chevron-left"></i> Previous
         </a>
         <div class="flex items-center gap-2">
-            <h3 class="text-xl font-semibold"><?= $month_name ?> <?= $year ?></h3>
-            <a href="?month=<?= date('m') ?>&year=<?= date('Y') ?>" class="ml-3 text-sm text-blue-600 hover:underline">Šodien</a>
+            <h3 class="text-xl font-semibold"><?= htmlspecialchars(ucfirst($month_name)) ?> <?= $year ?></h3>
+            <a href="?month=<?= date('m') ?>&year=<?= date('Y') ?>" class="ml-3 text-sm text-blue-600 hover:underline">Today</a>
         </div>
         <a href="?month=<?= $month+1 ?>&year=<?= $year ?>" class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg flex items-center gap-1">
-            Nākamais <i class="fas fa-chevron-right"></i>
+            Next <i class="fas fa-chevron-right"></i>
         </a>
     </div>
     
     <!-- Calendar Grid -->
     <div class="grid grid-cols-7 gap-px bg-gray-200 border border-gray-200 rounded-lg overflow-hidden shadow-sm">
-        <div class="text-center font-semibold p-2 bg-white">Pir</div>
-        <div class="text-center font-semibold p-2 bg-white">Otr</div>
-        <div class="text-center font-semibold p-2 bg-white">Tre</div>
-        <div class="text-center font-semibold p-2 bg-white">Cet</div>
-        <div class="text-center font-semibold p-2 bg-white">Pie</div>
-        <div class="text-center font-semibold p-2 bg-white">Ses</div>
-        <div class="text-center font-semibold p-2 bg-white">Svē</div>
+        <div class="text-center font-semibold p-2 bg-white">Mon</div>
+        <div class="text-center font-semibold p-2 bg-white">Tue</div>
+        <div class="text-center font-semibold p-2 bg-white">Wed</div>
+        <div class="text-center font-semibold p-2 bg-white">Thu</div>
+        <div class="text-center font-semibold p-2 bg-white">Fri</div>
+        <div class="text-center font-semibold p-2 bg-white">Sat</div>
+        <div class="text-center font-semibold p-2 bg-white">Sun</div>
         
         <?php 
         // Add empty cells for days before the first day of month
@@ -138,16 +147,16 @@ $stmt->close();
         
         // Days of the month
         for ($day = 1; $day <= $days_in_month; $day++) {
-            $date = sprintf('%04d-%02d-%02d', $year, $month, $day);
-            $is_today = ($date == date('Y-m-d'));
+            $date_str = sprintf('%04d-%02d-%02d', $year, $month, $day); // Renamed to avoid conflict
+            $is_today = ($date_str == date('Y-m-d'));
             $day_class = $is_today ? 'bg-white calendar-day today' : 'bg-white calendar-day';
             
             echo '<div class="' . $day_class . ' p-2 relative">';
             echo '<span class="day-number">' . $day . '</span>';
             
             // Display tasks for this day
-            if (isset($tasks_by_date[$date])) {
-                foreach ($tasks_by_date[$date] as $task) {
+            if (isset($tasks_by_date[$date_str])) {
+                foreach ($tasks_by_date[$date_str] as $task) {
                     $priority_class = '';
                     // Handle text-based priority values
                     switch (strtolower($task['priority'])) {
@@ -161,13 +170,13 @@ $stmt->close();
                             $priority_class = 'priority-low';
                             break;
                         default:
-                            $priority_class = '';  // Default case for when priority is empty or null
+                            $priority_class = '';
                     }
                     
                     $status_class = ($task['is_completed'] == 1) ? 'task-completed' : '';
                     
-                    echo '<div class="task-item ' . $priority_class . ' ' . $status_class . '" 
-                            data-task-id="' . $task['task_id'] . '" 
+                    echo '<div class="task-item ' . htmlspecialchars($priority_class) . ' ' . htmlspecialchars($status_class) . '" 
+                            data-task-id="' . htmlspecialchars($task['task_id']) . '" 
                             onclick="showTaskDetails(this, event)">
                             <span class="truncate block">' . htmlspecialchars($task['task_name']) . '</span>
                         </div>';
@@ -194,30 +203,30 @@ $stmt->close();
             </button>
         </div>
         <div class="mb-2">
-            <span class="text-sm text-gray-500">Apraksts:</span>
+            <span class="text-sm text-gray-500">Description:</span>
             <p id="popupTaskDescription" class="text-sm"></p>
         </div>
         <div class="grid grid-cols-2 gap-2 text-sm">
             <div>
-                <span class="text-gray-500">Termiņš:</span>
+                <span class="text-gray-500">Due Date:</span>
                 <p id="popupTaskDueDate"></p>
             </div>
             <div>
-                <span class="text-gray-500">Prioritāte:</span>
+                <span class="text-gray-500">Priority:</span>
                 <p id="popupTaskPriority"></p>
             </div>
             <div>
-                <span class="text-gray-500">Statuss:</span>
+                <span class="text-gray-500">Status:</span>
                 <p id="popupTaskStatus"></p>
             </div>
             <div>
-                <span class="text-gray-500">Dēlis:</span>
+                <span class="text-gray-500">Board:</span>
                 <p id="popupTaskBoard"></p>
             </div>
         </div>
         <div class="mt-4 flex justify-end">
-            <a id="popupEditLink" href="#" class="text-blue-600 hover:underline mr-4">Rediģēt</a>
-            <a id="popupViewLink" href="#" class="text-blue-600 hover:underline">Skatīt dēlī</a>
+            <a id="popupEditLink" href="#" class="text-blue-600 hover:underline mr-4">Edit</a>
+            <a id="popupViewLink" href="#" class="text-blue-600 hover:underline">View on Board</a>
         </div>
     </div>
 </div>
@@ -229,51 +238,79 @@ $stmt->close();
     let currentTaskId = null;
     
     function showTaskDetails(element, event) {
-    event.preventDefault();
-    event.stopPropagation();
-    
-    const taskId = element.dataset.taskId;
-    currentTaskId = taskId;
-    
-    // Position the popup
-    const rect = element.getBoundingClientRect();
-    taskPopup.style.left = `${rect.left}px`;
-    taskPopup.style.top = `${rect.bottom + window.scrollY + 5}px`;
-    
-    // Fetch task details via AJAX
-    fetch(`get_task_details.php?task_id=${taskId}`)
-        .then(response => response.json())
-        .then(task => {
-            document.getElementById('popupTaskName').textContent = task.task_name;
-            document.getElementById('popupTaskDescription').textContent = task.task_description || 'Nav apraksta';
-            document.getElementById('popupTaskDueDate').textContent = formatDate(task.due_date);
-            
-            // Handle text-based priority values
-            let priorityText = 'Nav norādīta';
-            if (task.priority) {
-                // Convert to lowercase for case-insensitive comparison
-                const priority = task.priority.toLowerCase();
-                
-                switch(priority) {
-                    case 'high': priorityText = 'Augsta'; break;
-                    case 'medium': priorityText = 'Vidēja'; break;
-                    case 'low': priorityText = 'Zema'; break;
+        event.preventDefault();
+        event.stopPropagation();
+        
+        const taskId = element.dataset.taskId;
+        currentTaskId = taskId;
+        
+        // Position the popup
+        const rect = element.getBoundingClientRect();
+        let popupTop = rect.bottom + window.scrollY + 5;
+        let popupLeft = rect.left + window.scrollX;
+
+        taskPopup.style.display = 'block'; // Display first to get offsetWidth/Height
+
+        const popupWidth = taskPopup.offsetWidth || 250;
+        const popupHeight = taskPopup.offsetHeight || 200;
+
+        if (popupLeft + popupWidth > window.innerWidth) {
+            popupLeft = window.innerWidth - popupWidth - 10; 
+        }
+        if (popupTop + popupHeight > window.innerHeight + window.scrollY) {
+            popupTop = rect.top + window.scrollY - popupHeight - 5; 
+        }
+        if (popupLeft < 0) {
+            popupLeft = 10;
+        }
+        if (popupTop < window.scrollY) {
+            popupTop = window.scrollY + 10;
+        }
+
+        taskPopup.style.left = `${popupLeft}px`;
+        taskPopup.style.top = `${popupTop}px`;
+        
+        fetch(`contents/get_task_details.php?task_id=${taskId}`) 
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
                 }
-            }
-            
-            document.getElementById('popupTaskPriority').textContent = priorityText;
-            
-            document.getElementById('popupTaskStatus').textContent = task.is_completed == 1 ? 'Pabeigts' : task.task_status;
-            document.getElementById('popupTaskBoard').textContent = task.board_name || 'Nav norādīts';
-            
-            document.getElementById('popupEditLink').href = `edit_task.php?task_id=${taskId}`;
-            document.getElementById('popupViewLink').href = `kanban.php?board_id=${task.board_id}`;
-            
-            taskPopup.style.display = 'block';
-        })
-        .catch(error => {
-            console.error('Error fetching task details:', error);
-        });
+                return response.json();
+            })
+            .then(task => {
+                document.getElementById('popupTaskName').textContent = task.task_name || 'Task';
+                document.getElementById('popupTaskDescription').textContent = task.task_description || 'No description';
+                document.getElementById('popupTaskDueDate').textContent = task.due_date ? formatDate(task.due_date) : 'Not set';
+                
+                let priorityText = 'Not specified';
+                if (task.priority) {
+                    const priority = task.priority.toLowerCase();
+                    switch(priority) {
+                        case 'high': priorityText = 'High'; break;
+                        case 'medium': priorityText = 'Medium'; break;
+                        case 'low': priorityText = 'Low'; break;
+                    }
+                }
+                document.getElementById('popupTaskPriority').textContent = priorityText;
+                
+                let statusText = task.task_status || 'Pending'; // Assume task_status is English or use a default
+                if (task.is_completed == 1) {
+                    statusText = 'Completed';
+                }
+                document.getElementById('popupTaskStatus').textContent = statusText;
+
+                document.getElementById('popupTaskBoard').textContent = task.board_name || 'Not specified';
+                
+                document.getElementById('popupEditLink').href = `edit_task.php?task_id=${taskId}`;
+                document.getElementById('popupViewLink').href = `kanban.php?board_id=${task.board_id}`;
+                
+                // taskPopup.style.display = 'block'; // Already set above
+            })
+            .catch(error => {
+                console.error('Error fetching task details:', error);
+                alert('Could not load task details.');
+                taskPopup.style.display = 'none'; // Hide if error
+            });
     }
     
     function hideTaskPopup() {
@@ -281,10 +318,15 @@ $stmt->close();
         currentTaskId = null;
     }
     
-    // Format date for display
+    // Format date for display (using Latvian locale for date parts)
     function formatDate(dateString) {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('lv-LV', {
+        if (!dateString) return 'N/A';
+        const dateObj = new Date(dateString); // Renamed to avoid conflict with global 'date'
+        if (isNaN(dateObj.getTime())) {
+            return 'Invalid Date';
+        }
+        // Kept lv-LV for date/time formatting as requested
+        return dateObj.toLocaleDateString('lv-LV', { 
             year: 'numeric',
             month: 'long',
             day: 'numeric',
@@ -293,9 +335,14 @@ $stmt->close();
         });
     }
     
-    // Close popup when clicking outside
     document.addEventListener('click', function(event) {
-        if (taskPopup.style.display === 'block' && !taskPopup.contains(event.target)) {
+        if (taskPopup.style.display === 'block' && !taskPopup.contains(event.target) && !event.target.closest('.task-item')) {
+            hideTaskPopup();
+        }
+    });
+
+    document.addEventListener('keydown', function(event) {
+        if (event.key === "Escape" && taskPopup.style.display === 'block') {
             hideTaskPopup();
         }
     });

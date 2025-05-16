@@ -1,13 +1,15 @@
 <?php
 session_start();
+//contents/get_task_details.php
+require_once dirname(dirname(dirname(__FILE__))) . '/config.php';
 if (!isset($_SESSION['user_id'])) {
     header('Content-Type: application/json');
     echo json_encode(['error' => 'Unauthorized']);
     exit();
 }
 
-// Include database connection
-require_once '../admin/database/connection.php';
+$project_root = dirname(dirname(dirname(__FILE__)));
+require_once $project_root . '/admin/database/connection.php';
 
 if (!isset($_GET['task_id']) || !is_numeric($_GET['task_id'])) {
     header('Content-Type: application/json');

@@ -53,8 +53,8 @@ if ($active_board_id > 0) {
         user_id INT NOT NULL,
         permission_level ENUM('view', 'edit', 'admin') NOT NULL DEFAULT 'view',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (board_id) REFERENCES Planotajs_Boards(board_id),
-        FOREIGN KEY (user_id) REFERENCES Planotajs_Users(user_id),
+        FOREIGN KEY (board_id) REFERENCES Planotajs_Boards(board_id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES Planotajs_Users(user_id) ON DELETE CASCADE,
         UNIQUE KEY (board_id, user_id)
     )";
     $connection->query($sql_create_table);
@@ -79,31 +79,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['update_project'])) {
         $board_name = trim($_POST['board_name']);
         $board_description = trim($_POST['board_description']);
+        $project_tags = isset($_POST['project_tags']) ? trim($_POST['project_tags']) : ($board_details['tags'] ?? '');
         
         if (!empty($board_name)) {
             $sql_update = "UPDATE Planotajs_Boards SET 
                            board_name = ?,
                            board_description = ?,
+                           tags = ?,
                            updated_at = CURRENT_TIMESTAMP
                            WHERE board_id = ? AND user_id = ?";
             $stmt_update = $connection->prepare($sql_update);
-            $stmt_update->bind_param("ssii", $board_name, $board_description, $active_board_id, $user_id);
+            $stmt_update->bind_param("sssii", $board_name, $board_description, $project_tags, $active_board_id, $user_id);
             
             if ($stmt_update->execute()) {
-                $message = "Projekta iestatījumi atjaunināti veiksmīgi!";
+                $message = "Project settings updated successfully!";
                 // Refresh board details
-                $stmt_details = $connection->prepare($sql_details);
+                $stmt_details = $connection->prepare($sql_details); // $sql_details is defined above
                 $stmt_details->bind_param("ii", $active_board_id, $user_id);
                 $stmt_details->execute();
                 $result_details = $stmt_details->get_result();
                 $board_details = $result_details->fetch_assoc();
                 $stmt_details->close();
+
+                 // Refresh board list in sidebar as name might have changed
+                $stmt_boards->execute(); // Re-execute the existing prepared statement for boards
+                $result_boards = $stmt_boards->get_result();
+                $boards = [];
+                while ($board = $result_boards->fetch_assoc()) {
+                    $boards[] = $board;
+                }
+                // $stmt_boards->close(); // Don't close if you might re-use it, or re-prepare
             } else {
-                $error = "Kļūda atjauninot projekta iestatījumus: " . $connection->error;
+                $error = "Error updating project settings: " . $connection->error;
             }
             $stmt_update->close();
         } else {
-            $error = "Projekta nosaukums nevar būt tukšs!";
+            $error = "Project name cannot be empty!";
         }
     }
     
@@ -112,8 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $email = trim($_POST['collaborator_email']);
         $permission = $_POST['permission_level'];
         
-        if (!empty($email)) {
-            // Check if user exists
+        if (!empty($email) && $active_board_id > 0) {
             $sql_check_user = "SELECT user_id FROM Planotajs_Users WHERE email = ?";
             $stmt_check_user = $connection->prepare($sql_check_user);
             $stmt_check_user->bind_param("s", $email);
@@ -123,46 +133,50 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($result_check_user->num_rows > 0) {
                 $collab_user = $result_check_user->fetch_assoc();
                 $collab_user_id = $collab_user['user_id'];
-                
-                // Check if user is already a collaborator
-                $sql_check_collab = "SELECT collaboration_id FROM Planotajs_Collaborators WHERE board_id = ? AND user_id = ?";
-                $stmt_check_collab = $connection->prepare($sql_check_collab);
-                $stmt_check_collab->bind_param("ii", $active_board_id, $collab_user_id);
-                $stmt_check_collab->execute();
-                $result_check_collab = $stmt_check_collab->get_result();
-                
-                if ($result_check_collab->num_rows === 0) {
-                    // Add collaborator
-                    $sql_add_collab = "INSERT INTO Planotajs_Collaborators (board_id, user_id, permission_level) VALUES (?, ?, ?)";
-                    $stmt_add_collab = $connection->prepare($sql_add_collab);
-                    $stmt_add_collab->bind_param("iis", $active_board_id, $collab_user_id, $permission);
-                    
-                    if ($stmt_add_collab->execute()) {
-                        $message = "Lietotājs pievienots kā sadarbības partneris!";
-                        // Refresh collaborators list
-                        $stmt_collaborators = $connection->prepare($sql_collaborators);
-                        $stmt_collaborators->bind_param("i", $active_board_id);
-                        $stmt_collaborators->execute();
-                        $result_collaborators = $stmt_collaborators->get_result();
-                        $collaborators = [];
-                        while ($collab = $result_collaborators->fetch_assoc()) {
-                            $collaborators[] = $collab;
-                        }
-                        $stmt_collaborators->close();
-                    } else {
-                        $error = "Kļūda pievienojot sadarbības partneri: " . $connection->error;
-                    }
-                    $stmt_add_collab->close();
+
+                if ($collab_user_id == $user_id) {
+                    $error = "You cannot add yourself as a collaborator.";
                 } else {
-                    $error = "Šis lietotājs jau ir pievienots kā sadarbības partneris.";
+                    $sql_check_collab = "SELECT collaboration_id FROM Planotajs_Collaborators WHERE board_id = ? AND user_id = ?";
+                    $stmt_check_collab = $connection->prepare($sql_check_collab);
+                    $stmt_check_collab->bind_param("ii", $active_board_id, $collab_user_id);
+                    $stmt_check_collab->execute();
+                    $result_check_collab = $stmt_check_collab->get_result();
+                    
+                    if ($result_check_collab->num_rows === 0) {
+                        $sql_add_collab = "INSERT INTO Planotajs_Collaborators (board_id, user_id, permission_level) VALUES (?, ?, ?)";
+                        $stmt_add_collab = $connection->prepare($sql_add_collab);
+                        $stmt_add_collab->bind_param("iis", $active_board_id, $collab_user_id, $permission);
+                        
+                        if ($stmt_add_collab->execute()) {
+                            $message = "User added as a collaborator!";
+                            // Refresh collaborators list
+                            $stmt_collaborators_refresh = $connection->prepare($sql_collaborators); // $sql_collaborators defined above
+                            $stmt_collaborators_refresh->bind_param("i", $active_board_id);
+                            $stmt_collaborators_refresh->execute();
+                            $result_collaborators_refresh = $stmt_collaborators_refresh->get_result();
+                            $collaborators = [];
+                            while ($collab = $result_collaborators_refresh->fetch_assoc()) {
+                                $collaborators[] = $collab;
+                            }
+                            $stmt_collaborators_refresh->close();
+                        } else {
+                            $error = "Error adding collaborator: " . $connection->error;
+                        }
+                        $stmt_add_collab->close();
+                    } else {
+                        $error = "This user is already a collaborator.";
+                    }
+                    $stmt_check_collab->close();
                 }
-                $stmt_check_collab->close();
             } else {
-                $error = "Lietotājs ar šādu e-pastu netika atrasts.";
+                $error = "User with this email not found.";
             }
             $stmt_check_user->close();
+        } elseif(empty($email)) {
+            $error = "Please enter an email address!";
         } else {
-            $error = "Lūdzu, ievadiet e-pasta adresi!";
+            $error = "No active project selected to add a collaborator.";
         }
     }
     
@@ -170,26 +184,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (isset($_POST['remove_collaborator'])) {
         $collaboration_id = (int)$_POST['collaboration_id'];
         
-        $sql_remove = "DELETE FROM Planotajs_Collaborators WHERE collaboration_id = ? AND board_id = ?";
-        $stmt_remove = $connection->prepare($sql_remove);
-        $stmt_remove->bind_param("ii", $collaboration_id, $active_board_id);
-        
-        if ($stmt_remove->execute()) {
-            $message = "Sadarbības partneris noņemts veiksmīgi!";
-            // Refresh collaborators list
-            $stmt_collaborators = $connection->prepare($sql_collaborators);
-            $stmt_collaborators->bind_param("i", $active_board_id);
-            $stmt_collaborators->execute();
-            $result_collaborators = $stmt_collaborators->get_result();
-            $collaborators = [];
-            while ($collab = $result_collaborators->fetch_assoc()) {
-                $collaborators[] = $collab;
+        if ($active_board_id > 0) {
+            $sql_remove = "DELETE FROM Planotajs_Collaborators WHERE collaboration_id = ? AND board_id = ?";
+            $stmt_remove = $connection->prepare($sql_remove);
+            $stmt_remove->bind_param("ii", $collaboration_id, $active_board_id);
+            
+            if ($stmt_remove->execute()) {
+                $message = "Collaborator removed successfully!";
+                // Refresh collaborators list
+                $stmt_collaborators_refresh = $connection->prepare($sql_collaborators);
+                $stmt_collaborators_refresh->bind_param("i", $active_board_id);
+                $stmt_collaborators_refresh->execute();
+                $result_collaborators_refresh = $stmt_collaborators_refresh->get_result();
+                $collaborators = [];
+                while ($collab = $result_collaborators_refresh->fetch_assoc()) {
+                    $collaborators[] = $collab;
+                }
+                $stmt_collaborators_refresh->close();
+            } else {
+                $error = "Error removing collaborator: " . $connection->error;
             }
-            $stmt_collaborators->close();
+            $stmt_remove->close();
         } else {
-            $error = "Kļūda noņemot sadarbības partneri: " . $connection->error;
+             $error = "No active project selected to remove a collaborator from.";
         }
-        $stmt_remove->close();
     }
 }
 ?>
@@ -197,10 +215,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
     <!-- Sidebar with projects list -->
     <div class="bg-white rounded-lg shadow-md p-6">
-        <h2 class="text-xl font-bold mb-4">Mani projekti</h2>
+        <h2 class="text-xl font-bold mb-4">My Projects</h2>
         
         <?php if (empty($boards)): ?>
-            <p class="text-gray-500">Nav atrastu projektu.</p>
+            <p class="text-gray-500">No projects found.</p>
         <?php else: ?>
             <div class="space-y-2">
                 <?php foreach ($boards as $board): ?>
@@ -214,7 +232,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         <div class="mt-6">  
             <a href="kanban.php" class="text-blue-600 hover:underline flex items-center gap-2">
-                <i class="fas fa-arrow-left"></i> Atpakaļ uz kanban
+                <i class="fas fa-arrow-left"></i> Back to Kanban
             </a>
         </div>
     </div>
@@ -224,53 +242,53 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php if (empty($board_details)): ?>
             <div class="text-center py-8">
                 <i class="fas fa-project-diagram text-4xl text-gray-400 mb-4"></i>
-                <h3 class="text-xl font-semibold text-gray-600">Izvēlieties projektu kreisajā izvēlnē</h3>
-                <p class="text-gray-500 mt-2">vai izveidojiet jaunu projektu kanban skatā</p>
+                <h3 class="text-xl font-semibold text-gray-600">Select a project from the left menu</h3>
+                <p class="text-gray-500 mt-2">or create a new project in the Kanban view</p>
             </div>
         <?php else: ?>
             <?php if ($message): ?>
-                <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
-                    <?= $message ?>
+                <div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4" role="alert">
+                    <?= htmlspecialchars($message) ?>
                 </div>
             <?php endif; ?>
             
             <?php if ($error): ?>
-                <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-                    <?= $error ?>
+                <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4" role="alert">
+                    <?= htmlspecialchars($error) ?>
                 </div>
             <?php endif; ?>
             
             <!-- Settings tabs -->
             <div class="mb-6 border-b">
-                <ul class="flex flex-wrap -mb-px">
+                <ul class="flex flex-wrap -mb-px" id="settings-tabs-nav">
                     <li class="mr-2">
                         <a href="#general" class="inline-block py-2 px-4 border-b-2 border-[#e63946] text-[#e63946] font-medium" 
-                           onclick="showTab('general'); return false;">
-                            Vispārīgie iestatījumi
+                           onclick="showTab('general', this); return false;">
+                            General Settings
                         </a>
                     </li>
                     <li class="mr-2">
                         <a href="#collaborators" class="inline-block py-2 px-4 text-gray-600 hover:text-[#e63946] font-medium"
-                           onclick="showTab('collaborators'); return false;">
-                            Sadarbības partneri
+                           onclick="showTab('collaborators', this); return false;">
+                            Collaborators
                         </a>
                     </li>
                     <li class="mr-2">
                         <a href="#notifications" class="inline-block py-2 px-4 text-gray-600 hover:text-[#e63946] font-medium"
-                           onclick="showTab('notifications'); return false;">
-                            Paziņojumi
+                           onclick="showTab('notifications', this); return false;">
+                            Notifications
                         </a>
                     </li>
                     <li class="mr-2">
                         <a href="#advanced" class="inline-block py-2 px-4 text-gray-600 hover:text-[#e63946] font-medium"
-                           onclick="showTab('advanced'); return false;">
-                            Paplašinātie iestatījumi
+                           onclick="showTab('advanced', this); return false;">
+                            Advanced Settings
                         </a>
                     </li>
                     <li class="mr-2">
                         <a href="#activity" class="inline-block py-2 px-4 text-gray-600 hover:text-[#e63946] font-medium"
-                            onclick="showTab('activity'); return false;">
-                             Aktivitātes
+                            onclick="showTab('activity', this); return false;">
+                             Activity Log
                         </a>
                     </li>
                 </ul>
@@ -278,33 +296,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             <!-- General Settings Tab -->
             <div id="general-tab" class="settings-tab">
-                <h2 class="text-xl font-bold mb-4">Projekta iestatījumi</h2>
+                <h2 class="text-xl font-bold mb-4">Project Settings</h2>
                 
                 <form method="post" action="project_settings.php?board_id=<?= $active_board_id ?>">
                     <div class="mb-4">
-                        <label for="board_name" class="block text-gray-700 font-medium mb-2">Projekta nosaukums</label>
+                        <label for="board_name" class="block text-gray-700 font-medium mb-2">Project Name</label>
                         <input type="text" id="board_name" name="board_name" 
-                               value="<?= htmlspecialchars($board_details['board_name'] ?? '') ?>" 
+                               value="<?= htmlspecialchars($board_details['board_name'] ?? '') ?>" required
                                class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#e63946]">
                     </div>
                     
                     <div class="mb-4">
-                        <label for="board_description" class="block text-gray-700 font-medium mb-2">Apraksts</label>
+                        <label for="board_description" class="block text-gray-700 font-medium mb-2">Description</label>
                         <textarea id="board_description" name="board_description" rows="4"
                                   class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#e63946]"
                         ><?= htmlspecialchars($board_details['board_description'] ?? '') ?></textarea>
                     </div>
                     
                     <div class="mb-4">
-                        <label for="project_tags" class="block text-gray-700 font-medium mb-2">Tagi (atdalīti ar komatu)</label>
+                        <label for="project_tags" class="block text-gray-700 font-medium mb-2">Tags (comma-separated)</label>
                         <input type="text" id="project_tags" name="project_tags" 
                                value="<?= htmlspecialchars($board_details['tags'] ?? '') ?>" 
+                               placeholder="e.g., work, personal, urgent"
                                class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#e63946]">
                     </div>
                     
                     <div class="flex justify-end">
                         <button type="submit" name="update_project" class="bg-[#e63946] text-white px-6 py-2 rounded-lg hover:bg-red-700">
-                            Saglabāt izmaiņas
+                            Save Changes
                         </button>
                     </div>
                 </form>
@@ -312,31 +331,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             <!-- Collaborators Tab -->
             <div id="collaborators-tab" class="settings-tab hidden">
-                <h2 class="text-xl font-bold mb-4">Sadarbības partneri</h2>
+                <h2 class="text-xl font-bold mb-4">Collaborators</h2>
                 
-                <div class="mb-8">
-                    <h3 class="text-lg font-semibold mb-3">Pievienot sadarbības partneri</h3>
+                <div class="mb-8 p-4 border rounded-lg bg-gray-50">
+                    <h3 class="text-lg font-semibold mb-3">Add Collaborator</h3>
                     <form method="post" action="project_settings.php?board_id=<?= $active_board_id ?>" class="flex flex-wrap gap-3 items-end">
                         <div class="flex-grow min-w-[200px]">
-                            <label for="collaborator_email" class="block text-gray-700 font-medium mb-2">E-pasta adrese</label>
+                            <label for="collaborator_email" class="block text-gray-700 font-medium mb-2">Email Address</label>
                             <input type="email" id="collaborator_email" name="collaborator_email" 
-                                   placeholder="lietotajs@epasts.lv" required
+                                   placeholder="user@example.com" required
                                    class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#e63946]">
                         </div>
                         
                         <div class="min-w-[150px]">
-                            <label for="permission_level" class="block text-gray-700 font-medium mb-2">Piekļuves līmenis</label>
+                            <label for="permission_level" class="block text-gray-700 font-medium mb-2">Permission Level</label>
                             <select id="permission_level" name="permission_level" 
                                     class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#e63946]">
-                                <option value="view">Skatīt</option>
-                                <option value="edit">Rediģēt</option>
-                                <option value="admin">Administrators</option>
+                                <option value="view">View</option>
+                                <option value="edit">Edit</option>
+                                <option value="admin">Admin</option>
                             </select>
                         </div>
                         
                         <div>
                             <button type="submit" name="add_collaborator" class="bg-[#e63946] text-white px-6 py-2 rounded-lg hover:bg-red-700">
-                                Pievienot
+                                Add
                             </button>
                         </div>
                     </form>
@@ -344,23 +363,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 
                 <div>
                     <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-lg font-semibold">Esošie sadarbības partneri</h3>
+                        <h3 class="text-lg font-semibold">Current Collaborators</h3>
                         <button onclick="openInvitationModal()" class="bg-[#e63946] text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center gap-2">
-                            <i class="fas fa-user-plus"></i> Uzaicināt
+                            <i class="fas fa-user-plus"></i> Invite
                         </button>
                     </div>
                     
                     <?php if (empty($collaborators)): ?>
-                        <p class="text-gray-500">Nav pievienotu sadarbības partneru.</p>
+                        <p class="text-gray-500">No collaborators added yet.</p>
                     <?php else: ?>
                         <div class="overflow-x-auto">
                             <table class="min-w-full bg-white border">
                                 <thead>
                                     <tr class="bg-gray-100">
-                                        <th class="py-3 px-4 text-left">Lietotājvārds</th>
-                                        <th class="py-3 px-4 text-left">E-pasts</th>
-                                        <th class="py-3 px-4 text-left">Piekļuve</th>
-                                        <th class="py-3 px-4 text-right">Darbības</th>
+                                        <th class="py-3 px-4 text-left text-sm font-semibold text-gray-600">Username</th>
+                                        <th class="py-3 px-4 text-left text-sm font-semibold text-gray-600">Email</th>
+                                        <th class="py-3 px-4 text-left text-sm font-semibold text-gray-600">Permission</th>
+                                        <th class="py-3 px-4 text-right text-sm font-semibold text-gray-600">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -369,26 +388,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                             <td class="py-3 px-4"><?= htmlspecialchars($collab['username']) ?></td>
                                             <td class="py-3 px-4"><?= htmlspecialchars($collab['email']) ?></td>
                                             <td class="py-3 px-4">
-                                                <?php 
-                                                    switch ($collab['permission_level']) {
-                                                        case 'view':
-                                                            echo 'Skatīt';
-                                                            break;
-                                                        case 'edit':
-                                                            echo 'Rediģēt';
-                                                            break;
-                                                        case 'admin':
-                                                            echo 'Administrators';
-                                                            break;
-                                                    }
-                                                ?>
+                                                <?= htmlspecialchars(ucfirst($collab['permission_level'])) ?>
                                             </td>
                                             <td class="py-3 px-4 text-right">
                                                 <form method="post" action="project_settings.php?board_id=<?= $active_board_id ?>" 
-                                                      onsubmit="return confirm('Vai tiešām vēlaties noņemt šo sadarbības partneri?');">
+                                                      onsubmit="return confirm('Are you sure you want to remove this collaborator?');">
                                                     <input type="hidden" name="collaboration_id" value="<?= $collab['collaboration_id'] ?>">
-                                                    <button type="submit" name="remove_collaborator" class="text-red-600 hover:underline">
-                                                        Noņemt
+                                                    <button type="submit" name="remove_collaborator" class="text-red-600 hover:underline text-sm">
+                                                        Remove
                                                     </button>
                                                 </form>
                                             </td>
@@ -401,10 +408,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 </div>
 
                 <!-- Invitation Modal -->
-                <div id="invitationModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
-                    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+                <div id="invitationModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+                    <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-auto">
                         <div class="flex justify-between items-center border-b px-6 py-4">
-                            <h3 class="text-xl font-bold">Uzaicināt sadarbības partneri</h3>
+                            <h3 class="text-xl font-bold">Invite Collaborator</h3>
                             <button onclick="closeInvitationModal()" class="text-gray-500 hover:text-gray-700">
                                 <i class="fas fa-times"></i>
                             </button>
@@ -414,35 +421,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <input type="hidden" name="board_id" value="<?= $active_board_id ?>">
                             
                             <div class="mb-4">
-                                <label for="email" class="block text-gray-700 font-medium mb-2">E-pasta adrese</label>
-                                <input type="email" id="email" name="email" required
-                                    placeholder="lietotajs@epasts.lv"
+                                <label for="invitation_email" class="block text-gray-700 font-medium mb-2">Email Address</label>
+                                <input type="email" id="invitation_email" name="email" required
+                                    placeholder="user@example.com"
                                     class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#e63946]">
                             </div>
                             
                             <div class="mb-4">
-                                <label for="invitation_permission_level" class="block text-gray-700 font-medium mb-2">Piekļuves līmenis</label>
+                                <label for="invitation_permission_level" class="block text-gray-700 font-medium mb-2">Permission Level</label>
                                 <select id="invitation_permission_level" name="permission_level"
                                         class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#e63946]">
-                                    <option value="view">Skatīt (lietotājs var tikai apskatīt projektu)</option>
-                                    <option value="edit">Rediģēt (lietotājs var pievienot un rediģēt uzdevumus)</option>
-                                    <option value="admin">Administrators (lietotājs var pārvaldīt projekta iestatījumus)</option>
+                                    <option value="view">View (User can only view the project)</option>
+                                    <option value="edit">Edit (User can add and edit tasks)</option>
+                                    <option value="admin">Admin (User can manage project settings)</option>
                                 </select>
                             </div>
                             
                             <div class="mb-4">
-                                <label for="custom_message" class="block text-gray-700 font-medium mb-2">Personīgais ziņojums (neobligāts)</label>
-                                <textarea id="custom_message" name="custom_message" rows="4" 
-                                        placeholder="Pievienojiet personīgu ziņojumu uzaicinātajam lietotājam..."
+                                <label for="custom_message" class="block text-gray-700 font-medium mb-2">Personal Message (Optional)</label>
+                                <textarea id="custom_message" name="custom_message" rows="3" 
+                                        placeholder="Add a personal message to the invited user..."
                                         class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#e63946]"></textarea>
                             </div>
                             
                             <div class="mt-6 flex justify-end">
-                                <button type="button" onclick="closeInvitationModal()" class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg mr-3">
-                                    Atcelt
+                                <button type="button" onclick="closeInvitationModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg mr-3">
+                                    Cancel
                                 </button>
                                 <button type="submit" name="send_invitation" class="bg-[#e63946] text-white px-6 py-2 rounded-lg hover:bg-red-700">
-                                    Nosūtīt ielūgumu
+                                    Send Invitation
                                 </button>
                             </div>
                         </form>
@@ -452,55 +459,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             <!-- Notifications Tab -->
             <div id="notifications-tab" class="settings-tab hidden">
-                <h2 class="text-xl font-bold mb-4">Paziņojumu iestatījumi</h2>
+                <h2 class="text-xl font-bold mb-4">Notification Settings</h2>
                 
                 <form method="post" action="project_settings.php?board_id=<?= $active_board_id ?>">
+                    <input type="hidden" name="update_notifications_settings" value="1"> <!-- Placeholder for actual handling -->
                     <div class="space-y-4">
                         <div class="flex items-center">
-                            <input type="checkbox" id="notify_task_assignment" name="notify_task_assignment" class="mr-2 h-5 w-5" checked>
-                            <label for="notify_task_assignment" class="text-gray-700">Jauns uzdevums piešķirts</label>
+                            <input type="checkbox" id="notify_task_assignment" name="notify_task_assignment" class="mr-3 h-5 w-5 text-[#e63946] focus:ring-[#e63946] border-gray-300 rounded" checked>
+                            <label for="notify_task_assignment" class="text-gray-700">New task assigned</label>
                         </div>
                         
                         <div class="flex items-center">
-                            <input type="checkbox" id="notify_task_status" name="notify_task_status" class="mr-2 h-5 w-5" checked>
-                            <label for="notify_task_status" class="text-gray-700">Uzdevuma statuss mainīts</label>
+                            <input type="checkbox" id="notify_task_status" name="notify_task_status" class="mr-3 h-5 w-5 text-[#e63946] focus:ring-[#e63946] border-gray-300 rounded" checked>
+                            <label for="notify_task_status" class="text-gray-700">Task status changed</label>
                         </div>
                         
                         <div class="flex items-center">
-                            <input type="checkbox" id="notify_comments" name="notify_comments" class="mr-2 h-5 w-5" checked>
-                            <label for="notify_comments" class="text-gray-700">Jauni komentāri</label>
+                            <input type="checkbox" id="notify_comments" name="notify_comments" class="mr-3 h-5 w-5 text-[#e63946] focus:ring-[#e63946] border-gray-300 rounded" checked>
+                            <label for="notify_comments" class="text-gray-700">New comments</label>
                         </div>
                         
                         <div class="flex items-center">
-                            <input type="checkbox" id="notify_deadline" name="notify_deadline" class="mr-2 h-5 w-5" checked>
-                            <label for="notify_deadline" class="text-gray-700">Tuvojas termiņš</label>
+                            <input type="checkbox" id="notify_deadline" name="notify_deadline" class="mr-3 h-5 w-5 text-[#e63946] focus:ring-[#e63946] border-gray-300 rounded" checked>
+                            <label for="notify_deadline" class="text-gray-700">Approaching deadline</label>
                         </div>
                         
                         <div class="flex items-center">
-                            <input type="checkbox" id="notify_collaborator" name="notify_collaborator" class="mr-2 h-5 w-5" checked>
-                            <label for="notify_collaborator" class="text-gray-700">Jauns sadarbības partneris pievienots</label>
+                            <input type="checkbox" id="notify_collaborator" name="notify_collaborator" class="mr-3 h-5 w-5 text-[#e63946] focus:ring-[#e63946] border-gray-300 rounded" checked>
+                            <label for="notify_collaborator" class="text-gray-700">New collaborator added</label>
                         </div>
                     </div>
                     
-                    <div class="mt-6">
-                        <h3 class="font-semibold mb-3">Paziņojumu kanāli</h3>
+                    <div class="mt-8">
+                        <h3 class="font-semibold mb-3 text-lg">Notification Channels</h3>
                         
                         <div class="space-y-4">
                             <div class="flex items-center">
-                                <input type="checkbox" id="channel_email" name="channel_email" class="mr-2 h-5 w-5" checked>
-                                <label for="channel_email" class="text-gray-700">E-pasts</label>
+                                <input type="checkbox" id="channel_email" name="channel_email" class="mr-3 h-5 w-5 text-[#e63946] focus:ring-[#e63946] border-gray-300 rounded" checked>
+                                <label for="channel_email" class="text-gray-700">Email</label>
                             </div>
                             
                             <div class="flex items-center">
-                                <input type="checkbox" id="channel_app" name="channel_app" class="mr-2 h-5 w-5" checked>
-                                <label for="channel_app" class="text-gray-700">Lietotnes paziņojumi</label>
+                                <input type="checkbox" id="channel_app" name="channel_app" class="mr-3 h-5 w-5 text-[#e63946] focus:ring-[#e63946] border-gray-300 rounded" checked>
+                                <label for="channel_app" class="text-gray-700">In-app notifications</label>
                             </div>
                         </div>
                     </div>
                     
-                    <div class="flex justify-end mt-6">
+                    <div class="flex justify-end mt-8">
                         <button type="submit" name="update_notifications" class="bg-[#e63946] text-white px-6 py-2 rounded-lg hover:bg-red-700">
-                            Saglabāt paziņojumu iestatījumus
+                            Save Notification Settings
                         </button>
                     </div>
                 </form>
@@ -508,49 +516,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             <!-- Advanced Settings Tab -->
             <div id="advanced-tab" class="settings-tab hidden">
-                <h2 class="text-xl font-bold mb-4">Paplašinātie iestatījumi</h2>
+                <h2 class="text-xl font-bold mb-4">Advanced Settings</h2>
                 
-                <div class="mb-6">
-                    <h3 class="text-lg font-semibold mb-3">Projekta eksportēšana</h3>
+                <div class="mb-8 p-4 border rounded-lg">
+                    <h3 class="text-lg font-semibold mb-3">Export Project Data</h3>
                     <div class="flex flex-wrap gap-3">
-                        <button class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg flex items-center gap-2">
-                            <i class="fas fa-file-excel"></i> Eksportēt Excel
+                        <button class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg flex items-center gap-2">
+                            <i class="fas fa-file-excel"></i> Export to Excel
                         </button>
-                        <button class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg flex items-center gap-2">
-                            <i class="fas fa-file-csv"></i> Eksportēt CSV
+                        <button class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg flex items-center gap-2">
+                            <i class="fas fa-file-csv"></i> Export to CSV
                         </button>
-                        <button class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg flex items-center gap-2">
-                            <i class="fas fa-file-pdf"></i> Eksportēt PDF
+                        <button class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg flex items-center gap-2">
+                            <i class="fas fa-file-pdf"></i> Export to PDF
                         </button>
                     </div>
                 </div>
                 
-                <div class="mb-6">
-                    <h3 class="text-lg font-semibold mb-3">Integrācijas</h3>
+                <div class="mb-8 p-4 border rounded-lg">
+                    <h3 class="text-lg font-semibold mb-3">Integrations</h3>
                     <div class="flex flex-wrap gap-3">
-                        <button class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg flex items-center gap-2">
-                            <i class="fab fa-google"></i> Google kalendārs
+                        <button class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg flex items-center gap-2">
+                            <i class="fab fa-google"></i> Connect Google Calendar
                         </button>
-                        <button class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg flex items-center gap-2">
-                            <i class="fab fa-slack"></i> Slack
+                        <button class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg flex items-center gap-2">
+                            <i class="fab fa-slack"></i> Connect Slack
                         </button>
-                        <button class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg flex items-center gap-2">
-                            <i class="fab fa-github"></i> GitHub
+                        <button class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg flex items-center gap-2">
+                            <i class="fab fa-github"></i> Connect GitHub
                         </button>
                     </div>
                 </div>
                 
-                <div class="mb-6">
-                    <h3 class="text-lg font-semibold mb-3 text-red-600">Bīstamā zona</h3>
-                    <p class="text-gray-600 mb-4">Šīs darbības nevar atcelt. Lūdzu, rīkojieties uzmanīgi.</p>
+                <div class="p-4 border border-red-300 rounded-lg bg-red-50">
+                    <h3 class="text-lg font-semibold mb-3 text-red-700">Danger Zone</h3>
+                    <p class="text-gray-700 mb-4">These actions are irreversible. Please proceed with caution.</p>
                     
                     <div class="flex flex-wrap gap-3">
-                        <button class="bg-yellow-100 text-yellow-800 hover:bg-yellow-200 px-4 py-2 rounded-lg flex items-center gap-2">
-                            <i class="fas fa-archive"></i> Arhivēt projektu
+                        <button class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+                            <i class="fas fa-archive"></i> Archive Project
                         </button>
-                        <button class="bg-red-100 text-red-800 hover:bg-red-200 px-4 py-2 rounded-lg flex items-center gap-2"
-                                onclick="return confirm('Vai tiešām vēlaties dzēst šo projektu? Šo darbību nevar atsaukt.')">
-                            <i class="fas fa-trash-alt"></i> Dzēst projektu
+                        <button class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
+                                onclick="return confirm('Are you absolutely sure you want to delete this project? This action cannot be undone.')">
+                            <i class="fas fa-trash-alt"></i> Delete Project
                         </button>
                     </div>
                 </div>
@@ -558,20 +566,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             <!-- Activity Log Tab -->
             <div id="activity-tab" class="settings-tab hidden">
-                <h2 class="text-xl font-bold mb-4">Projekta aktivitātes</h2>
+                <h2 class="text-xl font-bold mb-4">Project Activity Log</h2>
                 
-                <div class="mb-4 flex justify-between items-center">
+                <div class="mb-4 flex flex-wrap justify-between items-center gap-3">
                     <div>
+                        <label for="activity-filter" class="sr-only">Filter activities</label>
                         <select id="activity-filter" class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#e63946]">
-                            <option value="all">Visas aktivitātes</option>
-                            <option value="tasks">Uzdevumi</option>
-                            <option value="collaborators">Sadarbības partneri</option>
-                            <option value="settings">Iestatījumi</option>
+                            <option value="all">All Activities</option>
+                            <option value="tasks">Tasks</option>
+                            <option value="collaborators">Collaborators</option>
+                            <option value="settings">Settings</option>
                         </select>
                     </div>
                     <div>
-                        <button class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg flex items-center gap-2">
-                            <i class="fas fa-calendar-alt"></i> Filtrēt pēc datuma
+                        <button class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg flex items-center gap-2">
+                            <i class="fas fa-calendar-alt"></i> Filter by Date
                         </button>
                     </div>
                 </div>
@@ -587,12 +596,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     related_entity_id INT NULL,
                     related_entity_type VARCHAR(50) NULL,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (board_id) REFERENCES Planotajs_Boards(board_id),
-                    FOREIGN KEY (user_id) REFERENCES Planotajs_Users(user_id)
+                    FOREIGN KEY (board_id) REFERENCES Planotajs_Boards(board_id) ON DELETE CASCADE,
+                    FOREIGN KEY (user_id) REFERENCES Planotajs_Users(user_id) ON DELETE CASCADE
                 )";
                 $connection->query($sql_create_activity);
                 
-                // Get activity logs for this board
                 $activities = [];
                 if ($active_board_id > 0) {
                     $sql_activities = "SELECT a.*, u.username 
@@ -616,60 +624,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <?php if (empty($activities)): ?>
                         <div class="p-8 text-center">
                             <i class="far fa-clock text-4xl text-gray-300 mb-3"></i>
-                            <p class="text-gray-500">Nav aktivitāšu šajā projektā.</p>
+                            <p class="text-gray-500">No activity recorded for this project yet.</p>
                         </div>
                     <?php else: ?>
-                        <div class="divide-y">
+                        <div class="divide-y divide-gray-200">
                             <?php foreach ($activities as $activity): ?>
                                 <?php
-                                // Determine icon based on activity type
-                                $icon_class = 'fas fa-info-circle text-blue-500';
-                                switch ($activity['activity_type']) {
-                                    case 'task_created':
-                                        $icon_class = 'fas fa-plus-circle text-green-500';
-                                        break;
-                                    case 'task_updated':
-                                        $icon_class = 'fas fa-edit text-blue-500';
-                                        break;
-                                    case 'task_deleted':
-                                        $icon_class = 'fas fa-trash-alt text-red-500';
-                                        break;
-                                    case 'task_completed':
-                                        $icon_class = 'fas fa-check-circle text-green-500';
-                                        break;
-                                    case 'collaborator_added':
-                                        $icon_class = 'fas fa-user-plus text-purple-500';
-                                        break;
-                                    case 'collaborator_removed':
-                                        $icon_class = 'fas fa-user-minus text-orange-500';
-                                        break;
-                                    case 'settings_updated':
-                                        $icon_class = 'fas fa-cog text-gray-500';
-                                        break;
+                                $icon_class = 'fas fa-info-circle text-blue-500'; // Default icon
+                                $activity_type_key = strtolower($activity['activity_type']);
+
+                                // Enhanced icon mapping
+                                $icon_map = [
+                                    'task_created' => 'fas fa-plus-circle text-green-500',
+                                    'task_updated' => 'fas fa-edit text-blue-500',
+                                    'task_deleted' => 'fas fa-trash-alt text-red-500',
+                                    'task_moved'   => 'fas fa-arrows-alt text-indigo-500',
+                                    'task_completed' => 'fas fa-check-circle text-green-600',
+                                    'task_reopened'  => 'fas fa-undo text-yellow-500',
+                                    'comment_added'  => 'fas fa-comment text-gray-500',
+                                    'collaborator_added' => 'fas fa-user-plus text-purple-500',
+                                    'collaborator_removed' => 'fas fa-user-minus text-orange-500',
+                                    'collaborator_permission_changed' => 'fas fa-user-shield text-teal-500',
+                                    'settings_updated' => 'fas fa-cog text-gray-600',
+                                    'board_created' => 'fas fa-chalkboard text-pink-500', // Assuming 'board' is project
+                                ];
+                                if (array_key_exists($activity_type_key, $icon_map)) {
+                                    $icon_class = $icon_map[$activity_type_key];
                                 }
                                 
-                                // Format date
-                                $activity_date = new DateTime($activity['created_at']);
-                                $formatted_date = $activity_date->format('d.m.Y H:i');
+                                $activity_date = new DateTime($activity['created_at'], new DateTimeZone('UTC')); // Assuming DB stores in UTC
+                                $activity_date->setTimezone(new DateTimeZone(date_default_timezone_get())); // Convert to server's default timezone
+                                $formatted_date = $activity_date->format('M d, Y H:i'); // English date format
                                 ?>
                                 
-                                <div class="p-4 hover:bg-gray-50 flex items-start data-activity-type="<?= $activity['activity_type'] ?>">
-                                    <div class="mr-4">
-                                        <i class="<?= $icon_class ?> text-xl"></i>
+                                <div class="p-4 hover:bg-gray-50 flex items-start" data-activity-type="<?= htmlspecialchars($activity['activity_type']) ?>">
+                                    <div class="mr-4 mt-1">
+                                        <i class="<?= $icon_class ?> text-lg"></i>
                                     </div>
                                     <div class="flex-grow">
                                         <div class="flex justify-between items-start">
                                             <div>
-                                                <span class="font-semibold"><?= htmlspecialchars($activity['username']) ?></span>
-                                                <span class="text-gray-600"><?= htmlspecialchars($activity['activity_description']) ?></span>
+                                                <span class="font-semibold text-gray-800"><?= htmlspecialchars($activity['username']) ?></span>
+                                                <span class="text-gray-600 ml-1"><?= htmlspecialchars($activity['activity_description']) ?></span>
                                             </div>
-                                            <div class="text-sm text-gray-500"><?= $formatted_date ?></div>
+                                            <div class="text-xs text-gray-500 whitespace-nowrap ml-2"><?= $formatted_date ?></div>
                                         </div>
                                         
                                         <?php if ($activity['related_entity_type'] == 'task' && $activity['related_entity_id']): ?>
-                                            <div class="mt-2">
-                                                <a href="view_task.php?task_id=<?= $activity['related_entity_id'] ?>" class="text-blue-500 hover:underline text-sm">
-                                                    Skatīt uzdevumu
+                                            <div class="mt-1">
+                                                <a href="kanban.php?board_id=<?= $active_board_id ?>&task_id=<?= $activity['related_entity_id'] ?>" class="text-blue-600 hover:underline text-sm">
+                                                    View Task
                                                 </a>
                                             </div>
                                         <?php endif; ?>
@@ -680,9 +684,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <?php endif; ?>
                 </div>
                 
-                <?php if (!empty($activities)): ?>
-                    <div class="mt-4 text-center">
-                        <button class="text-blue-600 hover:underline">Ielādēt vairāk</button>
+                <?php if (count($activities) >= 50): // Assuming 50 is the limit per load ?>
+                    <div class="mt-6 text-center">
+                        <button class="text-blue-600 hover:underline">Load More Activities</button>
                     </div>
                 <?php endif; ?>
             </div>
@@ -693,70 +697,100 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 
 <script>
-    // Tab switching functionality
-    function showTab(tabName) {
-        // Hide all tabs
+    function showTab(tabName, clickedLink) {
         document.querySelectorAll('.settings-tab').forEach(tab => {
             tab.classList.add('hidden');
         });
-        
-        // Show selected tab
         document.getElementById(tabName + '-tab').classList.remove('hidden');
         
-        // Update active tab styling
-        document.querySelectorAll('ul.flex a').forEach(link => {
+        const navLinks = document.querySelectorAll('#settings-tabs-nav a');
+        navLinks.forEach(link => {
             link.classList.remove('border-b-2', 'border-[#e63946]', 'text-[#e63946]');
             link.classList.add('text-gray-600', 'hover:text-[#e63946]');
         });
         
-        // Set active tab
-        const activeLink = document.querySelector(`a[href="#${tabName}"]`);
-        activeLink.classList.remove('text-gray-600', 'hover:text-[#e63946]');
-        activeLink.classList.add('border-b-2', 'border-[#e63946]', 'text-[#e63946]');
+        clickedLink.classList.remove('text-gray-600', 'hover:text-[#e63946]');
+        clickedLink.classList.add('border-b-2', 'border-[#e63946]', 'text-[#e63946]');
+
+        // Store active tab in URL hash
+        window.location.hash = tabName;
     }
-    
-    // Make sure Font Awesome is loaded
+
+    // Load Font Awesome if not already present
     if (!document.querySelector('link[href*="fontawesome"]')) {
         const fontAwesome = document.createElement('link');
         fontAwesome.rel = 'stylesheet';
-        fontAwesome.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
+        fontAwesome.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'; // Ensure this version is suitable
         document.head.appendChild(fontAwesome);
     }
 
     function openInvitationModal() {
-        document.getElementById('invitationModal').classList.remove('hidden');
-        document.body.style.overflow = 'hidden'; // Prevent scrolling
+        const modal = document.getElementById('invitationModal');
+        if (modal) {
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
     }
     
     function closeInvitationModal() {
-        document.getElementById('invitationModal').classList.add('hidden');
-        document.body.style.overflow = ''; // Restore scrolling
+        const modal = document.getElementById('invitationModal');
+        if (modal) {
+            modal.classList.add('hidden');
+            document.body.style.overflow = '';
+        }
     }
     
-    // Close modal when clicking outside
-    document.getElementById('invitationModal').addEventListener('click', function(event) {
-        if (event.target === this) {
-            closeInvitationModal();
-        }
-    });
+    const invitationModalElement = document.getElementById('invitationModal');
+    if (invitationModalElement) {
+        invitationModalElement.addEventListener('click', function(event) {
+            if (event.target === this) {
+                closeInvitationModal();
+            }
+        });
+    }
 
-    // Activity filtering functionality
-    document.getElementById('activity-filter').addEventListener('change', function() {
-        const filter = this.value;
-        const activities = document.querySelectorAll('[data-activity-type]');
-        
-        if (filter === 'all') {
+    const activityFilterElement = document.getElementById('activity-filter');
+    if (activityFilterElement) {
+        activityFilterElement.addEventListener('change', function() {
+            const filter = this.value;
+            const activities = document.querySelectorAll('#activity-tab [data-activity-type]');
+            
             activities.forEach(activity => {
-                activity.style.display = '';
-            });
-        } else {
-            activities.forEach(activity => {
-                if (activity.dataset.activityType.includes(filter)) {
-                    activity.style.display = '';
+                if (filter === 'all' || activity.dataset.activityType.toLowerCase().includes(filter)) {
+                    activity.style.display = 'flex'; // Assuming 'flex' is the default display for these items
                 } else {
                     activity.style.display = 'none';
                 }
             });
+        });
+    }
+
+    // Activate tab based on URL hash on page load
+    document.addEventListener('DOMContentLoaded', () => {
+        const hash = window.location.hash.substring(1);
+        const validTabs = ['general', 'collaborators', 'notifications', 'advanced', 'activity'];
+        if (hash && validTabs.includes(hash)) {
+            const tabLink = document.querySelector(`#settings-tabs-nav a[href="#${hash}"]`);
+            if (tabLink) {
+                showTab(hash, tabLink);
+            }
+        } else {
+            // Default to general tab if no valid hash or no hash
+            const defaultTabLink = document.querySelector(`#settings-tabs-nav a[href="#general"]`);
+            if (defaultTabLink) {
+                 showTab('general', defaultTabLink);
+            }
         }
     });
+
+    // Close modal with Escape key
+    document.addEventListener('keydown', function(event) {
+        if (event.key === "Escape") {
+            const modal = document.getElementById('invitationModal');
+            if (modal && !modal.classList.contains('hidden')) {
+                closeInvitationModal();
+            }
+        }
+    });
+
 </script>
