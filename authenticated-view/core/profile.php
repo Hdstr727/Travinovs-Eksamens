@@ -12,7 +12,7 @@ require '../../admin/database/connection.php';
 
 // Get user info from database
 $user_id = $_SESSION['user_id'];
-$sql = "SELECT username, email, full_name, bio, profile_picture FROM Planotajs_Users WHERE user_id = ?"; // Assuming Planotajs_Users is the table name and should not be translated
+$sql = "SELECT username, email, full_name, bio, profile_picture FROM Planotajs_Users WHERE user_id = ?";
 $stmt = $connection->prepare($sql);
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
@@ -198,7 +198,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 
-$title = "Edit Profile - Planner+"; // Assuming Plānotājs+ translates to Planner+
+$title = "Edit Profile - Planner+";
 ?>
 
 <!DOCTYPE html>
