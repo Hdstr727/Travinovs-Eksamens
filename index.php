@@ -7,18 +7,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.1/css/all.min.css" integrity="sha512-5Hs3dF2AEPkpNAR7UiOHba+lRSJNeM2ECkwxUIxC1Q/FLycGTbNapWXB4tP889k5T5Ju8fs4b1P5z/iB4nMfSQ==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <link href="https://unpkg.com/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <style>
-        .carousel {
-            position: relative;
-            max-width: 100%;
-            overflow: hidden;
-        }
-        .carousel-images {
-            display: flex;
-            transition: transform 0.5s ease;
-        }
-        .carousel-images img {
-            width: 100%;
-        }
+
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
@@ -90,34 +79,10 @@
         </div>
     </section>
 
-    <!-- Contact Section
-    <section id="contact" class="py-16 bg-white">
-        <div class="container mx-auto text-center px-4">
-            <h2 class="text-3xl font-semibold mb-10" style="color: #e63946;">Contact</h2>
-            <form action="#" method="POST" class="max-w-lg mx-auto">
-                <input type="text" name="name" placeholder="Your name" class="w-full mb-4 p-4 border border-gray-300 rounded-lg" required>
-                <input type="email" name="email" placeholder="Your email" class="w-full mb-4 p-4 border border-gray-300 rounded-lg" required>
-                <textarea name="message" placeholder="Your message" class="w-full mb-4 p-4 border border-gray-300 rounded-lg" required></textarea>
-                <button type="submit" class="bg-red-600 text-white py-3 px-8 rounded-lg hover:bg-red-700">Send Message</button>
-            </form>
-        </div>
-    </section> -->
-
     <!-- Footer -->
     <footer class="text-white text-center py-6 mt-16" style="background-color: #e63946;">
         <p>&copy; 2025 Planner+. All rights reserved.</p>
     </footer>
-
-    <script>
-        let currentSlide = 0;
-        const slides = document.querySelectorAll('.carousel-images img');
-        const totalSlides = slides.length;
-
-        function moveCarousel(direction) {
-            currentSlide = (currentSlide + direction + totalSlides) % totalSlides;
-            document.querySelector('.carousel-images').style.transform = `translateX(-${currentSlide * 100}%)`;
-        }
-    </script>
 
 </body>
 </html>

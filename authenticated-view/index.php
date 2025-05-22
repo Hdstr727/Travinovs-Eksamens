@@ -147,14 +147,10 @@ if ($stmt_count) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Planotajs</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/dark-theme.css">
     <style>
         .hover-scale { transition: transform 0.2s ease; }
         .hover-scale:hover { transform: scale(1.05); }
-        .dark-mode { background-color: #1a202c; color: #e2e8f0; }
-        .dark-mode .card, .dark-mode .bg-white { background-color: #2d3748; color: #e2e8f0; }
-        .dark-mode #profile-dropdown,
-        .dark-mode #notifications-dropdown,
-        .dark-mode #add-board-modal { background-color: #2d3748; color: #e2e8f0; }
         .badge { font-size: 0.65rem; padding: 0.15rem 0.5rem; border-radius: 9999px; }
         /* Ensure notification items are clickable */
         .notification-item > a, .notification-item > div[data-id] { cursor: pointer; }
@@ -329,15 +325,34 @@ if ($stmt_count) {
 
     <script>
         // Dark Mode Toggle Script
-        const darkModeToggle = document.getElementById('dark-mode-toggle');
-        const body = document.body;
-        if (localStorage.getItem('darkMode') === 'true') {
-            body.classList.add('dark-mode');
-        }
-        darkModeToggle.addEventListener('click', () => {
-            body.classList.toggle('dark-mode');
-            localStorage.setItem('darkMode', body.classList.contains('dark-mode'));
-        });
+        document.addEventListener('DOMContentLoaded', function () {
+
+            const darkModeToggle = document.getElementById('dark-mode-toggle');
+            const htmlElement = document.documentElement; // Target <html> element
+
+            function setDarkMode(isDark) {
+                if (isDark) {
+                    htmlElement.classList.add('dark-mode');
+                    if (darkModeToggle) darkModeToggle.textContent = '☀️'; // Sun icon
+                } else {
+                    htmlElement.classList.remove('dark-mode');
+                    if (darkModeToggle) darkModeToggle.textContent = '🌙'; // Moon icon
+                }
+            }
+
+            if (localStorage.getItem('darkMode') === 'true') {
+                setDarkMode(true); 
+            } else {
+                setDarkMode(false); 
+            }
+
+            if (darkModeToggle) { 
+                darkModeToggle.addEventListener('click', () => {
+                    const isCurrentlyDark = htmlElement.classList.contains('dark-mode');
+                    setDarkMode(!isCurrentlyDark);
+                    localStorage.setItem('darkMode', !isCurrentlyDark);
+                });
+            }});
 
         // Profile Dropdown Script
         const profileToggle = document.getElementById('profile-toggle');

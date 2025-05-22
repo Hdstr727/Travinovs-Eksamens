@@ -208,6 +208,7 @@ $title = "Edit Profile - Planner+";
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($title) ?></title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="../css/dark-theme.css">
 </head>
 <body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col">
    
@@ -215,10 +216,13 @@ $title = "Edit Profile - Planner+";
     <header class="bg-white shadow-md p-4 flex justify-between items-center">
         <h1 class="text-xl font-bold text-[#e63946]">Planner+</h1>
         <nav class="flex gap-4">
-            <a href="../index.php" class="text-gray-700 hover:text-[#e63946] ml-8">Back to dashboard</a>
+            <a href="../index.php" class="text-gray-700 hover:text-[#e63946] ml-40">Back to dashboard</a>
         </nav>
         <div class="flex items-center gap-4">
-            <a href="profile.php" class="relative group">
+            <button id="dark-mode-toggle-profile" title="Toggle dark mode" class="bg-gray-200 p-2 rounded-full hover:bg-gray-300 transition">
+                🌙
+            </button>
+            <a href="profile.php" class="relative group">    
                 <img src="<?= htmlspecialchars($user_avatar) ?>" class="w-10 h-10 rounded-full border group-hover:opacity-90 transition-opacity object-cover" alt="Avatar">
                 <div class="absolute opacity-0 group-hover:opacity-100 transition-opacity text-xs bg-black text-white px-2 py-1 rounded -bottom-8 left-1/2 transform -translate-x-1/2 whitespace-nowrap">
                     Edit profile
@@ -326,6 +330,55 @@ $title = "Edit Profile - Planner+";
                 }
             }
             reader.readAsDataURL(e.target.files[0]);
+        }
+    });
+
+    document.addEventListener('DOMContentLoaded', function () {
+    const darkModeToggleProfile = document.getElementById('dark-mode-toggle-profile');
+    const htmlElementProfile = document.documentElement;
+
+    function setProfileDarkMode(isDark) {
+        if (isDark) {
+            htmlElementProfile.classList.add('dark-mode');
+            if (darkModeToggleProfile) darkModeToggleProfile.textContent = '☀️';
+        } else {
+            htmlElementProfile.classList.remove('dark-mode');
+            if (darkModeToggleProfile) darkModeToggleProfile.textContent = '🌙';
+        }
+    }
+
+    if (localStorage.getItem('darkMode') === 'true') {
+        setProfileDarkMode(true);
+    } else {
+        setProfileDarkMode(false);
+    }
+
+    if (darkModeToggleProfile) {
+        darkModeToggleProfile.addEventListener('click', () => {
+            const isCurrentlyDark = htmlElementProfile.classList.contains('dark-mode');
+            setProfileDarkMode(!isCurrentlyDark);
+            localStorage.setItem('darkMode', !isCurrentlyDark);
+        });
+    }
+
+    // Original script for image preview (wrapped in DOMContentLoaded and null check)
+    const profilePictureInput = document.getElementById('profile_picture');
+    if (profilePictureInput) {
+        profilePictureInput.addEventListener('change', function(e) { // Outer e
+            if (e.target.files && e.target.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(ev) { // Inner ev, to avoid conflict with outer e
+                    const profilePreviewImg = document.getElementById('profile-preview');
+                    if (profilePreviewImg) profilePreviewImg.src = ev.target.result;
+                    
+                    const headerAvatar = document.querySelector('header img.rounded-full');
+                    if (headerAvatar) {
+                        headerAvatar.src = ev.target.result;
+                    }
+                }
+                reader.readAsDataURL(e.target.files[0]);
+            }
+        });
         }
     });
     </script>

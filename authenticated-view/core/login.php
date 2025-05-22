@@ -41,7 +41,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     // Close the prepared statement
     $query->close();
-}
+} 
 
 // Close the database connection
 $connection->close();
@@ -53,6 +53,7 @@ $connection->close();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="../css/dark-theme.css">
 </head>
 <body class="flex items-center justify-center min-h-screen bg-gray-100">
     <div class="w-full max-w-md p-8 bg-white rounded-lg shadow-md text-center">
@@ -83,5 +84,16 @@ $connection->close();
             </p>
         </div>
     </div>
+          
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const htmlElementLogin = document.documentElement;
+            if (localStorage.getItem('darkMode') === 'true') {
+                htmlElementLogin.classList.add('dark-mode');
+            } else {
+                htmlElementLogin.classList.remove('dark-mode');
+            }
+        });
+    </script>
 </body>
 </html>

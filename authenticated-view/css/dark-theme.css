@@ -1,0 +1,388 @@
+/* authenticated-view/css/dark-theme.css */
+
+/* --- ENHANCED DARK MODE PALETTE for Authenticated Layout --- */
+html.dark-mode {
+    background-color: #1A1B26; /* Deep, slightly cool base */
+    color-scheme: dark; /* Hint for browser UI like scrollbars */
+}
+.dark-mode body {
+    background-color: #1A1B26 !important; /* Main content area background */
+    color: #F0F0F0 !important;  /* Primary light text (off-white) */
+}
+.dark-mode .bg-white { background-color: #242535 !important; } /* Primary surface */
+.dark-mode .bg-gray-50 { background-color: #28293D !important; } /* Slightly lighter surface variation (Kanban Columns, Empty Calendar Days) */
+.dark-mode .bg-gray-100 { background-color: #1A1B26 !important; } /* Content area BG (if explicitly set to gray-100 in light) */
+.dark-mode .bg-gray-200 { background-color: #34354A !important; } /* Buttons, secondary surfaces, input backgrounds, Calendar Grid BG */
+.dark-mode .bg-gray-300 { background-color: #4A4B6A !important; } /* For things like cancel buttons if they use bg-gray-300 */
+
+.dark-mode .text-black { color: #F0F0F0 !important; }
+.dark-mode .text-gray-900 { color: #F0F0F0 !important; }
+.dark-mode .text-gray-800 { color: #F0F0F0 !important; } /* Calendar title "Task Calendar" */
+.dark-mode .text-gray-700 { color: #A9A9B3 !important; }
+.dark-mode .text-gray-600 { color: #8A8B9A !important; } /* View switcher inactive text */
+.dark-mode .text-gray-500 { color: #6C6D7C !important; } /* Popup text-gray-500 */
+.dark-mode .text-xl.font-bold.text-\[\#e63946\] { color: #FF7575 !important; } /* Board Name, Modal Title */
+.dark-mode .border-transparent { border-color: transparent !important; }
+.dark-mode .border,
+.dark-mode .border-gray-200, /* Calendar Grid Border */
+.dark-mode .border-gray-300,
+.dark-mode .border-gray-400 {
+    border-color: #3D3E58 !important;
+}
+.dark-mode .shadow { box-shadow: 0 1px 2px 0 rgba(0,0,0,0.25), 0 1px 1px 0 rgba(0,0,0,0.2) !important; }
+.dark-mode .shadow-md { box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3), 0 2px 4px -2px rgba(0,0,0,0.2) !important; } /* Calendar main container shadow */
+.dark-mode .shadow-lg { box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3), 0 4px 6px -4px rgba(0,0,0,0.2) !important; }
+.dark-mode .shadow-xl { box-shadow: 0 20px 25px -5px rgba(0,0,0,0.3), 0 8px 10px -6px rgba(0,0,0,0.2) !important; }
+.dark-mode .shadow-inner { box-shadow: inset 0 2px 4px 0 rgba(0,0,0,0.25) !important; } /* Task List inner shadow */
+.dark-mode .shadow-sm { box-shadow: 0 1px 2px 0 rgba(0,0,0,0.25) !important; } /* Calendar grid shadow */
+
+
+.dark-mode .text-\[\#e63946\] { color: #FF7575 !important; }
+.dark-mode .hover\:text-\[\#e63946\]:hover { color: #FF9090 !important; }
+.dark-mode .bg-red-500 { background-color: #C62828 !important; }
+.dark-mode .hover\:bg-red-700:hover,
+.dark-mode .bg-red-500:hover { background-color: #A02020 !important; }
+.dark-mode #dark-mode-toggle.bg-gray-200,
+.dark-mode #notifications-toggle.bg-gray-200 {
+    background-color: #34354A !important;
+    color: #F0F0F0;
+}
+.dark-mode #dark-mode-toggle.hover\:bg-gray-300:hover,
+.dark-mode #notifications-toggle.hover\:bg-gray-300:hover {
+     background-color: #4A4B6A !important;
+}
+.dark-mode .bg-blue-500 { background-color: #1976D2 !important; }
+.dark-mode .hover\:bg-blue-600:hover { background-color: #1565C0 !important; }
+.dark-mode .text-blue-600 { color: #63B3ED !important; } /* "Today" link, Popup "View on Board" link */
+.dark-mode .hover\:text-blue-700:hover, .dark-mode .text-blue-600:hover { color: #90CDF4 !important; }
+
+
+.dark-mode .bg-green-500 { background-color: #388E3C !important; }
+.dark-mode .hover\:bg-green-600:hover { background-color: #2E7D32 !important; }
+.dark-mode #notifications-dropdown {
+    background-color: #242535 !important;
+    border-color: #3D3E58 !important;
+}
+.dark-mode #notifications-dropdown .text-lg.font-semibold { color: #F0F0F0 !important; }
+.dark-mode #notifications-dropdown .text-sm.text-\[\#e63946\]:hover { color: #FF9090 !important; }
+.dark-mode .notification-item .hover\:bg-gray-100:hover { background-color: #34354A !important; }
+.dark-mode .notification-item .bg-sky-50 { /* Unread notification item background in dark mode */
+    background-color: rgba(66, 165, 245, 0.15) !important; /* A subtle blue tint, similar to light mode but on dark bg */
+}
+/* Ensure text within notification items is styled correctly for dark mode */
+.dark-mode .notification-item.font-semibold > a > p,
+.dark-mode .notification-item > a.font-semibold > p,
+.dark-mode .notification-item > div.font-semibold > p,
+.dark-mode .notification-item .font-semibold p,
+.dark-mode .notification-item .font-semibold { /* This targets the text if font-semibold is on the container */
+    color: #F0F0F0 !important;
+}
+.dark-mode .notification-item .text-gray-500,
+.dark-mode .notification-item.font-semibold .text-gray-500, /* Timestamp color in unread items */
+.dark-mode .notification-item .font-semibold .text-gray-500 { /* Timestamp color in unread items */
+    color: #A9A9B3 !important;
+}
+
+/* Input fields, textareas, selects within the main content area */
+.dark-mode main input[type="text"],
+.dark-mode main input[type="password"],
+.dark-mode main input[type="email"],
+.dark-mode main input[type="search"],
+.dark-mode main input[type="number"],
+.dark-mode main input[type="date"], 
+.dark-mode main input[type="time"],
+.dark-mode main input[type="url"],
+.dark-mode main input[type="tel"],
+.dark-mode main textarea,
+.dark-mode main select {
+    background-color: #34354A !important;
+    border: 1px solid #3D3E58 !important;
+    color: #F0F0F0 !important;
+    border-radius: 0.375rem; 
+}
+.dark-mode main input::placeholder,
+.dark-mode main textarea::placeholder {
+    color: #8A8B9A !important;
+}
+.dark-mode main input:focus,
+.dark-mode main textarea:focus,
+.dark-mode main select:focus {
+    border-color: #FF7575 !important; 
+    box-shadow: 0 0 0 3px rgba(255, 117, 117, 0.3) !important; 
+    outline: none !important;
+}
+.dark-mode main input[type="radio"] {
+    accent-color: #FF7575; 
+}
+.dark-mode main input[type="radio"]:focus {
+    box-shadow: 0 0 0 2px rgba(255, 117, 117, 0.3) !important;
+}
+
+
+/* Generic buttons in main content */
+.dark-mode main button:not([class*="bg-red"]):not([class*="bg-gray"]):not([class*="bg-blue"]):not([class*="bg-green"]):not([class*="text-gray-"]):not([class*="text-red-"]):not([class*="text-blue-"]) ,
+.dark-mode main button.bg-\[\#e63946\] { 
+    background-color: #FF7575 !important; 
+    color: #1A1B26 !important; 
+    border: 1px solid transparent !important;
+}
+.dark-mode main button:not([class*="bg-red"]):not([class*="bg-gray"]):not([class*="bg-blue"]):not([class*="bg-green"]):not([class*="text-gray-"]):not([class*="text-red-"]):not([class*="text-blue-"]):hover,
+.dark-mode main button.bg-\[\#e63946\]:hover {
+    background-color: #FF9090 !important;
+    border-color: transparent !important;
+}
+.dark-mode main button.bg-gray-300 {
+    background-color: #4A4B6A !important;
+    color: #F0F0F0 !important;
+}
+.dark-mode main button.bg-gray-300:hover {
+    background-color: #5A5B7A !important;
+}
+
+
+/* Avatar tooltip */
+.dark-mode .group:hover .bg-black.text-white {
+    background-color: #34354A !important;
+    color: #F0F0F0 !important;
+}
+
+/* Custom Scrollbars for Webkit browsers */
+.dark-mode ::-webkit-scrollbar { width: 10px; height: 10px; }
+.dark-mode ::-webkit-scrollbar-track { background: #242535; border-radius: 5px; }
+.dark-mode ::-webkit-scrollbar-thumb { background: #4A4B6A; border-radius: 5px; }
+.dark-mode ::-webkit-scrollbar-thumb:hover { background: #6C6D7C; }
+.dark-mode ::-webkit-scrollbar-corner { background: #1A1B26; }
+
+/* --- KANBAN SPECIFIC STYLES --- */
+.dark-mode .editable:focus {
+    outline: 2px solid #FF7575 !important;
+    background-color: #34354A !important; 
+    color: #F0F0F0 !important;
+    padding: 0.25rem; border-radius: 0.25rem;
+}
+.dark-mode .add-placeholder {
+    border: 2px dashed #3D3E58 !important; 
+    background-color: rgba(40, 41, 61, 0.5) !important; 
+}
+.dark-mode .add-placeholder:hover {
+    background-color: rgba(40, 41, 61, 0.8) !important;
+    border-color: #FF7575 !important; 
+}
+.dark-mode .add-placeholder .text-gray-500 { color: #8A8B9A !important; }
+.dark-mode .add-placeholder svg { stroke: #8A8B9A !important; }
+.dark-mode .add-placeholder:hover .text-gray-500,
+.dark-mode .add-placeholder:hover svg { color: #FF9090 !important; stroke: #FF9090 !important; }
+.dark-mode .task-card.bg-green-100 { background-color: #1E4620 !important; border-color: #2F855A !important; }
+.dark-mode .task-card.bg-yellow-100 { background-color: #5F400B !important; border-color: #B7791F !important; }
+.dark-mode .task-card.bg-red-100 { background-color: #601D1D !important; border-color: #C53030 !important; }
+.dark-mode .task-card .task-title { color: #F0F0F0 !important; }
+.dark-mode .task-card .task-description { color: #A9A9B3 !important; }
+.dark-mode .task-card .text-xs.text-gray-500 { color: #8A8B9A !important; }
+.dark-mode .task-card .text-green-600 { color: #68D391 !important; } 
+.dark-mode .task-card .text-yellow-600 { color: #F6E05E !important; } 
+.dark-mode .task-card .text-red-600 { color: #FC8181 !important; } 
+.dark-mode .task-card .text-blue-500 { color: #63B3ED !important; }
+.dark-mode .task-card .hover\:text-blue-700:hover { color: #90CDF4 !important; }
+.dark-mode .task-card .text-red-500 { color: #FC8181 !important; } 
+.dark-mode .task-card .hover\:text-red-700:hover { color: #FCA5A5 !important; }
+.dark-mode .flex-shrink-0.bg-gray-50 button.text-gray-500 { color: #A9A9B3 !important; }
+.dark-mode .flex-shrink-0.bg-gray-50 button.hover\:text-gray-700:hover { color: #F0F0F0 !important; }
+.dark-mode .flex-shrink-0.bg-gray-50 button.text-red-500 { color: #FC8181 !important; }
+.dark-mode .flex-shrink-0.bg-gray-50 button.hover\:text-red-700:hover { color: #FCA5A5 !important; }
+.dark-mode .permission-badge { background-color: #3D3E58 !important; color: #A9A9B3 !important; }
+.dark-mode .ui-sortable-placeholder,
+.dark-mode .bg-gray-300.p-4.rounded-lg.my-2 { 
+    background-color: #34354A !important;
+    border: 2px dashed #4A4B6A !important;
+    visibility: visible !important; 
+}
+
+/* --- CALENDAR SPECIFIC STYLES --- */
+
+/* View Switcher Buttons (Day/Week/Month) */
+.dark-mode a.hover\:bg-gray-100:hover, /* For inactive view buttons */
+.dark-mode div a.hover\:bg-gray-100:hover { /* More specific if needed */
+    background-color: #28293D !important; /* Slightly lighter surface variation */
+}
+.dark-mode a.bg-gray-200, /* For active view button */
+.dark-mode div a.bg-gray-200 {
+    background-color: #FF7575 !important; /* Brand accent for active */
+    color: #1A1B26 !important; /* Dark text on active button */
+}
+.dark-mode a.bg-gray-200.font-semibold.text-gray-800 { /* Ensure active button text is correct */
+    color: #1A1B26 !important;
+}
+
+
+/* Navigation Buttons (Previous/Next) */
+/* These already use bg-gray-200 and hover:bg-gray-300, so existing rules should cover them.
+   .dark-mode .bg-gray-200 { background-color: #34354A !important; }
+   .dark-mode .bg-gray-300 { background-color: #4A4B6A !important; }
+   We might need to ensure their text color is light if it's not already.
+*/
+.dark-mode a.bg-gray-200.hover\:bg-gray-300,
+.dark-mode a.bg-gray-200 { /* For prev/next nav buttons */
+    color: #F0F0F0 !important; /* Ensure text is light */
+}
+.dark-mode a.bg-gray-200.hover\:bg-gray-300:hover {
+    background-color: #4A4B6A !important; /* Hover for prev/next */
+}
+
+
+/* Calendar "Today" cell highlight */
+.dark-mode .calendar-day.today {
+    background-color: rgba(255, 117, 117, 0.15) !important; /* Subtle brand color tint */
+    border: 1px solid rgba(255, 117, 117, 0.3) !important; /* Optional: subtle border */
+}
+
+/* Calendar Day Numbers */
+.dark-mode .day-number {
+    color: #A9A9B3 !important; /* Lighter gray for day numbers */
+}
+.dark-mode .calendar-day.today .day-number {
+    color: #FF9090 !important; /* Brighter for today's day number */
+    font-weight: bold;
+}
+
+/* Calendar Task Items */
+.dark-mode .task-item {
+    color: #D1D5DB; /* Default text color for tasks */
+    /* General task item background will be inherited from .calendar-day or specific priority */
+}
+.dark-mode .task-item:hover {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.3) !important;
+    /* transform is fine */
+}
+
+/* Task Item Priorities */
+.dark-mode .task-item.priority-high {
+    border-left: 3px solid #F87171 !important; /* Lighter Red */
+    background-color: rgba(248, 113, 113, 0.15) !important;
+    color: #FCA5A5 !important;
+}
+.dark-mode .task-item.priority-medium {
+    border-left: 3px solid #FBBF24 !important; /* Lighter Amber */
+    background-color: rgba(251, 191, 36, 0.15) !important;
+    color: #FCD34D !important;
+}
+.dark-mode .task-item.priority-low {
+    border-left: 3px solid #4ADE80 !important; /* Lighter Green */
+    background-color: rgba(74, 222, 128, 0.15) !important;
+    color: #86EFAC !important;
+}
+
+/* Completed Task Item */
+.dark-mode .task-item.task-completed {
+    opacity: 0.5 !important;
+    /* text-decoration: line-through; is fine */
+}
+.dark-mode .task-item.task-completed span { /* Ensure text inside completed task is also dimmed */
+    color: inherit !important; /* Inherit the dimmed color from parent */
+}
+
+
+/* Task Popup (already uses .bg-white, so it's covered) */
+/* Text inside popup */
+.dark-mode #taskPopup .font-bold.text-lg { /* Popup Task Name */
+    color: #F0F0F0 !important;
+}
+.dark-mode #taskPopup .text-gray-500 { /* Labels like "Description:", "Due Date:" */
+    color: #8A8B9A !important;
+}
+.dark-mode #taskPopup p { /* Content for description, due date etc. */
+    color: #D1D5DB !important;
+}
+.dark-mode #taskPopup .text-blue-600 { /* "View on Board" link */
+    color: #63B3ED !important;
+}
+.dark-mode #taskPopup .text-blue-600:hover {
+    color: #90CDF4 !important;
+}
+.dark-mode #taskPopup .text-gray-500.hover\:text-gray-700:hover i, /* Close icon hover */
+.dark-mode #taskPopup .text-gray-500.hover\:text-gray-700:hover {
+    color: #F0F0F0 !important;
+}
+
+/* --- PROJECT SETTINGS SPECIFIC STYLES --- */
+
+/* Sidebar Project Links */
+.dark-mode div.bg-white a.hover\:bg-gray-100:hover { /* Sidebar project link hover */
+    background-color: #28293D !important; /* Lighter surface variation */
+}
+.dark-mode div.bg-white a.bg-gray-100 { /* Active project link in sidebar */
+    background-color: #28293D !important; /* Lighter surface variation */
+    /* border-l-4 border-[#e63946] is handled by .dark-mode .border-[#e63946] */
+}
+.dark-mode div.bg-white a.bg-gray-100.border-l-4.border-\[\#e63946\] {
+    color: #FF9090 !important; /* Make active project text brighter */
+}
+
+
+/* Tabs Navigation */
+.dark-mode #settings-tabs-nav a.text-gray-600 { /* Inactive tab text */
+    color: #8A8B9A !important;
+}
+/* Active tab text and border are already covered by:
+   .dark-mode .text-\[\#e63946\]
+   .dark-mode .border-\[\#e63946\]
+   .dark-mode .hover\:text-\[\#e63946\]:hover
+*/
+
+/* Collaborators Table */
+.dark-mode table.bg-white { /* Table itself */
+    background-color: #242535 !important; /* Primary surface */
+    border-color: #3D3E58 !important;
+}
+.dark-mode table thead tr.bg-gray-100 { /* Table header row */
+    background-color: #28293D !important; /* Lighter surface variation */
+}
+.dark-mode table thead th.text-gray-600 { /* Table header text */
+    color: #A9A9B3 !important;
+}
+.dark-mode table tbody tr.border-t { /* Table row border */
+    border-color: #3D3E58 !important;
+}
+.dark-mode table tbody tr.hover\:bg-gray-50:hover { /* Table row hover */
+    background-color: #28293D !important;
+}
+.dark-mode table tbody td { /* Default text color in table cells */
+    color: #F0F0F0 !important;
+}
+.dark-mode table tbody td .text-red-600 { /* "Remove" link for collaborator */
+    color: #FC8181 !important;
+}
+.dark-mode table tbody td .text-red-600:hover {
+    color: #FCA5A5 !important;
+}
+
+/* Invitation Modal (bg-white is handled, inputs/selects/buttons are handled by generic rules) */
+/* Ensure modal close button is styled */
+.dark-mode #invitationModal button.text-gray-500.hover\:text-gray-700:hover i,
+.dark-mode #invitationModal button.text-gray-500.hover\:text-gray-700:hover {
+    color: #F0F0F0 !important;
+}
+
+/* Activity Log */
+.dark-mode #activity-tab .divide-gray-200 > :not([hidden]) ~ :not([hidden]) { /* Item dividers */
+    border-color: #3D3E58 !important;
+}
+.dark-mode #activity-tab .hover\:bg-gray-50:hover {
+    background-color: #28293D !important;
+}
+/* Activity log icon colors - these are specific text color utilities */
+.dark-mode #activity-tab .text-green-500 { color: #4ADE80 !important; }
+.dark-mode #activity-tab .text-green-600 { color: #38A169 !important; }
+.dark-mode #activity-tab .text-blue-500 { color: #63B3ED !important; }
+.dark-mode #activity-tab .text-red-500 { color: #FC8181 !important; }
+.dark-mode #activity-tab .text-indigo-500 { color: #7F9CF5 !important; }
+.dark-mode #activity-tab .text-yellow-500 { color: #FBBF24 !important; }
+.dark-mode #activity-tab .text-gray-500 { color: #A0AEC0 !important; } /* For comment icon */
+.dark-mode #activity-tab .text-purple-500 { color: #B794F4 !important; }
+.dark-mode #activity-tab .text-orange-500 { color: #F97316 !important; } /* Tailwind v3 orange-500 */
+.dark-mode #activity-tab .text-teal-500 { color: #4FD1C5 !important; }
+.dark-mode #activity-tab .text-gray-600 { color: #A9A9B3 !important; } /* For cog icon */
+.dark-mode #activity-tab .text-pink-500 { color: #EC4899 !important; }
+
+/* Danger Zone specific text (bg-red-50 is handled by .dark-mode .bg-red-500 if we assume it's a darker red) */
+/* If bg-red-50 is meant to be a very light red, we need a new rule: */
+.dark-mode .bg-red-50 { background-color: rgba(200, 40, 40, 0.2) !important; } /* Example: very subtle dark red */

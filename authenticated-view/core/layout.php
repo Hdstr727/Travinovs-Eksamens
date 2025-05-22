@@ -45,9 +45,6 @@ $db_profile_picture_path = $user['profile_picture'];
 $full_server_path_to_picture = __DIR__ . '/' . $db_profile_picture_path;
 
 if (!empty($db_profile_picture_path) && file_exists($full_server_path_to_picture)) {
-    // For the <img> src attribute, since layout.php is included by pages
-    // in authenticated-view/ (one level above core/), we need to prepend 'core/'
-    // to the path stored in the DB.
     $user_avatar = 'core/' . $db_profile_picture_path;
 } else {
     $user_avatar = "https://ui-avatars.com/api/?name=" . urlencode($username) . "&background=e63946&color=fff";
@@ -86,59 +83,15 @@ if (isset($connection)) {
     <title><?= htmlspecialchars($title ?? "Plānotājs+") ?></title>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="css/dark-theme.css">
     <style>
-        /* Dark Mode Base Styles */
-        .dark-mode { background-color: #1a202c; color: #e2e8f0; }
-        .dark-mode body { background-color: #1a202c !important; color: #e2e8f0 !important; }
-        .dark-mode .bg-white { background-color: #2d3748 !important; /* For header, dropdowns, cards */ }
-        .dark-mode .bg-gray-100 { background-color: #1a202c !important; /* Main body background */ }
-        .dark-mode .bg-gray-200 { background-color: #2d3748 !important; /* Footer, icon button backgrounds */ }
-        .dark-mode .text-gray-800 { color: #e2e8f0 !important; }
-        .dark-mode .text-gray-700 { color: #a0aec0 !important; /* Nav links, secondary text */ }
-        .dark-mode .text-gray-600 { color: #cbd5e0 !important; /* Footer text, placeholder text in dropdown */ }
-        .dark-mode .text-gray-500 { color: #a0aec0 !important; /* Notification timestamp */ }
-        .dark-mode .border-gray-200 { border-color: #4a5568 !important; /* Dropdown borders, item separators */ }
-        .dark-mode .border-gray-300 { border-color: #4a5568 !important; }
-        .dark-mode .shadow-md { box-shadow: 0 4px 6px -1px rgba(0,0,0,0.4), 0 2px 4px -1px rgba(0,0,0,0.2) !important; }
-        
-        /* Hover states in Dark Mode */
-        .dark-mode .hover\:bg-gray-300:hover { background-color: #4a5568 !important; /* Icon button hover */ }
-        .dark-mode .hover\:text-\[\#e63946\]:hover { color: #fca5a5 !important; /* Lighter red for primary color hover */ }
-        .dark-mode a.text-\[\#e63946\] { color: #fca5a5 !important; /* Lighter red for primary links */ }
-        .dark-mode a.text-red-500:hover, .dark-mode a.bg-red-500:hover { background-color: #b91c1c !important; /* Darker red for logout hover in dark mode */ }
-        .dark-mode .hover\:opacity-90:hover { opacity: 0.9; }
-
-        /* Dropdowns in Dark Mode (Only for notifications now) */
-        .dark-mode #notifications-dropdown {
-            background-color: #2d3748 !important;
-            color: #e2e8f0 !important;
-            border: 1px solid #4a5568 !important;
-        }
-        .dark-mode #notifications-dropdown .text-lg { color: #e2e8f0 !important; }
-        .dark-mode .notification-item .hover\:bg-gray-100:hover { background-color: #4a5568 !important; }
-        .dark-mode .notification-item .bg-sky-50 { background-color: #374151 !important; /* Darker unread item bg */ }
-        
-        /* General elements potentially in $content */
-        .dark-mode input[type="text"], .dark-mode input[type="password"], .dark-mode input[type="email"], .dark-mode textarea, .dark-mode select {
-            background-color: #2d3748;
-            border-color: #4a5568;
-            color: #e2e8f0;
-        }
-        .dark-mode input::placeholder, .dark-mode textarea::placeholder {
-            color: #a0aec0;
-        }
-        .dark-mode .card { /* If you use a .card class */
-            background-color: #2d3748; 
-        }
-
-        /* Notification specific styles */
         .badge { font-size: 0.65rem; padding: 0.15rem 0.5rem; border-radius: 9999px; }
         .notification-item > a, .notification-item > div[data-id] { cursor: pointer; }
+
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col">
    
-    <!-- Šapka -->
     <header class="bg-white shadow-md p-4 flex justify-between items-center">
         <a href="index.php" class="text-xl font-bold text-[#e63946]">Planner+</a>
         <nav class="flex gap-4">
@@ -149,9 +102,8 @@ if (isset($connection)) {
             <a href="<?= htmlspecialchars($chat_url) ?>" class="text-gray-700 hover:text-[#e63946]">Chat</a>
         </nav>
         <div class="flex items-center space-x-4">
-            <!-- Notifications Bell -->
             <div class="relative">
-                <button id="notifications-toggle" class="relative bg-gray-200 p-2 rounded-full hover:bg-gray-300 transition">
+                <button id="notifications-toggle" title="Notifications" class="relative bg-gray-200 p-2 rounded-full hover:bg-gray-300 transition">
                     🔔
                     <?php if ($unread_notifications_count > 0): ?>
                         <span id="notification-count-badge" class="absolute top-0 right-0 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center">
@@ -172,13 +124,11 @@ if (isset($connection)) {
                 </div>
             </div>
 
-            <!-- Dark Mode Toggle -->
-            <button id="dark-mode-toggle" class="bg-gray-200 p-2 rounded-full hover:bg-gray-300 transition">
+            <button id="dark-mode-toggle" title="Toggle dark mode" class="bg-gray-200 p-2 rounded-full hover:bg-gray-300 transition">
                 🌙
             </button>
 
-            <!-- Profile Link (Avatar) -->
-            <a href="core/profile.php" class="relative group">
+            <a href="core/profile.php" class="relative group" title="Edit Profile">
                 <img src="<?= htmlspecialchars($user_avatar) ?>" class="w-10 h-10 rounded-full border group-hover:opacity-90 transition-opacity" alt="Avatar">
                 <div class="absolute opacity-0 group-hover:opacity-100 transition-opacity text-xs bg-black text-white px-2 py-1 rounded -bottom-8 left-1/2 transform -translate-x-1/2 whitespace-nowrap">
                     Rediģēt profilu
@@ -188,7 +138,7 @@ if (isset($connection)) {
             <a href="core/logout.php" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-700">Logout</a>
         </div>
     </header>
-    <!-- Kontents -->
+
     <main class="flex-grow container mx-auto p-6">
         <?php 
         if (isset($content) && file_exists($content)) {
@@ -200,27 +150,40 @@ if (isset($connection)) {
         }
         ?>
     </main>
-    <!-- Footers -->
+
     <footer class="bg-gray-200 text-center p-4 text-gray-600">
         © <?= date("Y") ?> Planner+. All rights reserved.
     </footer>
 
 <script>
     document.addEventListener('DOMContentLoaded', function () {
-        // Dark Mode Toggle Script
-        const darkModeToggle = document.getElementById('dark-mode-toggle');
-        const body = document.body;
-        if (localStorage.getItem('darkMode') === 'true') {
-            body.classList.add('dark-mode');
+        const darkModeToggleLayout = document.getElementById('dark-mode-toggle');
+        const htmlElementLayout = document.documentElement; // Target <html>
+
+        function setLayoutDarkMode(isDark) {
+            if (isDark) {
+                htmlElementLayout.classList.add('dark-mode');
+                localStorage.setItem('darkMode', 'true');
+                if(darkModeToggleLayout) darkModeToggleLayout.textContent = '☀️';
+            } else {
+                htmlElementLayout.classList.remove('dark-mode');
+                localStorage.setItem('darkMode', 'false');
+                if(darkModeToggleLayout) darkModeToggleLayout.textContent = '🌙';
+            }
         }
-        if (darkModeToggle) {
-            darkModeToggle.addEventListener('click', () => {
-                body.classList.toggle('dark-mode');
-                localStorage.setItem('darkMode', body.classList.contains('dark-mode'));
+
+        if (localStorage.getItem('darkMode') === 'true') {
+            setLayoutDarkMode(true);
+        } else {
+            setLayoutDarkMode(false);
+        }
+
+        if (darkModeToggleLayout) {
+            darkModeToggleLayout.addEventListener('click', () => {
+                setLayoutDarkMode(!htmlElementLayout.classList.contains('dark-mode'));
             });
         }
         
-        // Notifications Dropdown Script
         const notificationsToggle = document.getElementById('notifications-toggle');
         const notificationsDropdown = document.getElementById('notifications-dropdown');
         const notificationsList = document.getElementById('notifications-list');
@@ -228,7 +191,6 @@ if (isset($connection)) {
 
         function fetchNotifications() {
             if (!notificationsList) {
-                console.error("Notification list element not found.");
                 return;
             }
             fetch('ajax_handlers/get_notifications.php')
@@ -244,11 +206,9 @@ if (isset($connection)) {
                         updateUnreadCount(data.unread_count);
                     } else {
                         notificationsList.innerHTML = `<p class="text-sm text-red-500">Error: ${data.error || 'Could not load notifications.'}</p>`;
-                        console.error("Error from get_notifications:", data.error);
                     }
                 })
                 .catch(error => {
-                    console.error('Error fetching notifications:', error);
                     notificationsList.innerHTML = '<p class="text-sm text-red-500">Error fetching notifications. Please try again.</p>';
                 });
         }
@@ -263,13 +223,15 @@ if (isset($connection)) {
 
             let html = '';
             notifications.forEach(notif => {
-                const isUnreadClass = notif.is_read == 0 ? 'font-semibold bg-sky-50' : 'text-gray-700';
+                const isUnreadClass = notif.is_read == 0 ? 'font-semibold bg-sky-50' : ''; // Tailwind classes for unread
                 const messageText = String(notif.message || '').replace(/</g, "<").replace(/>/g, ">");
                 const createdAtText = String(notif.formatted_created_at || '').replace(/</g, "<").replace(/>/g, ">");
 
+                // Use the classes from dark-theme.css for hover and unread items
+                // The .dark-mode prefix will be handled by the CSS file
                 const linkHtml = notif.link ?
-                    `<a href="${encodeURI(notif.link)}" class="block hover:bg-gray-100 p-2 rounded ${isUnreadClass}" data-id="${notif.notification_id}">` :
-                    `<div class="block p-2 rounded ${isUnreadClass}" data-id="${notif.notification_id}">`;
+                    `<a href="${encodeURI(notif.link)}" class="block p-2 rounded ${isUnreadClass}" data-id="${notif.notification_id}">` : // hover:bg-gray-100 is handled by dark-theme.css
+                    `<div class="block p-2 rounded ${isUnreadClass}" data-id="${notif.notification_id}">`; // hover:bg-gray-100 is handled by dark-theme.css
                 const linkEndHtml = notif.link ? `</a>` : `</div>`;
 
                 html += `
@@ -287,7 +249,8 @@ if (isset($connection)) {
                 item.addEventListener('click', function(e) {
                     const notificationId = this.dataset.id;
                     const isLink = this.tagName === 'A';
-                    const isCurrentlyUnread = this.classList.contains('font-semibold'); 
+                     // Check if the item *itself* or its parent container for styling has the unread class
+                    const isCurrentlyUnread = this.classList.contains('font-semibold') || (this.closest('.notification-item') && this.closest('.notification-item').querySelector('.font-semibold'));
 
                     if (isCurrentlyUnread) {
                         markNotificationAsRead(notificationId, !isLink); 
@@ -327,10 +290,14 @@ if (isset($connection)) {
                     if (refreshList) {
                         fetchNotifications(); 
                     } else {
-                        const itemClicked = notificationsList && notificationsList.querySelector(`.notification-item [data-id="${notificationId}"]`);
+                        // Manually update the UI for the clicked item
+                        const itemClicked = notificationsList && (notificationsList.querySelector(`.notification-item a[data-id="${notificationId}"]`) || notificationsList.querySelector(`.notification-item div[data-id="${notificationId}"]`));
                         if (itemClicked) {
-                            itemClicked.classList.remove('font-semibold', 'bg-sky-50');
-                            itemClicked.classList.add('text-gray-700'); 
+                            // Remove classes that mark it as unread
+                            itemClicked.classList.remove('font-semibold', 'bg-sky-50'); 
+                            // If font-semibold was on a child, remove it too (more robust to find it within item)
+                            const textElements = itemClicked.querySelectorAll('.font-semibold');
+                            textElements.forEach(el => el.classList.remove('font-semibold'));
                         }
                         let currentBadge = document.getElementById('notification-count-badge');
                         if (currentBadge) {
@@ -340,8 +307,6 @@ if (isset($connection)) {
                            }
                         }
                     }
-                } else {
-                    console.error("Failed to mark notification as read - server error:", data.error);
                 }
             })
             .catch(error => console.error('Error marking notification as read:', error));
@@ -362,8 +327,6 @@ if (isset($connection)) {
                 .then(data => {
                     if (data.success) {
                         fetchNotifications(); 
-                    } else {
-                        console.error("Failed to mark all as read - server error:", data.error);
                     }
                 })
                 .catch(error => console.error('Error marking all notifications as read:', error));
@@ -374,25 +337,19 @@ if (isset($connection)) {
             notificationsToggle.addEventListener('click', (e) => {
                 e.stopPropagation(); 
                 notificationsDropdown.classList.toggle('hidden');
-                // No need to close profile dropdown as it's not a toggle anymore
                 if (!notificationsDropdown.classList.contains('hidden')) { 
                     fetchNotifications();
                 }
             });
         }
 
-        // Close dropdowns when clicking outside
         document.addEventListener('click', (e) => {
             if (notificationsDropdown && !notificationsDropdown.classList.contains('hidden')) {
                 if (!notificationsToggle.contains(e.target) && !notificationsDropdown.contains(e.target)) {
                     notificationsDropdown.classList.add('hidden');
                 }
             }
-            // No profile dropdown to close this way
         });
-        
-        // Optional: Polling for notifications
-        // setInterval(fetchNotifications, 30000); 
     });
 </script>
 </body>

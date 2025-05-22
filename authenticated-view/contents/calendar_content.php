@@ -177,7 +177,7 @@ function render_tasks_for_day($date_str_for_tasks, $tasks_by_date_array) {
     .priority-low { border-left: 3px solid #22c55e; background-color: rgba(34, 197, 94, 0.1); }
     .task-completed { text-decoration: line-through; opacity: 0.6; }
     .today { background-color: rgba(230, 57, 70, 0.1); }
-    .task-popup { display: none; position: absolute; background: white; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 100; min-width: 250px; max-width: 300px; }
+    .task-popup { display: none; position: absolute; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 100; min-width: 250px; max-width: 300px; }
     .day-number { position: absolute; top: 4px; right: 6px; font-size: 0.9rem; font-weight: 500; color: #666; }
 </style>
 
@@ -283,7 +283,7 @@ function render_tasks_for_day($date_str_for_tasks, $tasks_by_date_array) {
     <?php endif; ?>
     
     <!-- Task Popup -->
-    <div id="taskPopup" class="task-popup p-4">
+    <div id="taskPopup" class="task-popup bg-white p-4">
         <div class="flex justify-between items-start mb-3">
             <h4 id="popupTaskName" class="font-bold text-lg"></h4>
             <button onclick="hideTaskPopup()" class="text-gray-500 hover:text-gray-700">

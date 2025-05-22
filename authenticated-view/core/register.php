@@ -64,6 +64,7 @@ $connection->close();
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Register</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="../css/dark-theme.css">
     <script>
         <?php if ($success): ?>
             let count = 3;
@@ -113,5 +114,16 @@ $connection->close();
             </div>
         <?php endif; ?>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const htmlElementLogin = document.documentElement;
+            if (localStorage.getItem('darkMode') === 'true') {
+                htmlElementLogin.classList.add('dark-mode');
+            } else {
+                htmlElementLogin.classList.remove('dark-mode');
+            }
+        });
+    </script>
 </body>
 </html>
