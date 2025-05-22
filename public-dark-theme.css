@@ -1,0 +1,242 @@
+/* Travinovs-Eksamens/public-dark-theme.css */
+
+/* --- Base Dark Mode Palette (from your authenticated theme) --- */
+html.dark-mode {
+    background-color: #1A1B26; /* Deep, slightly cool base */
+    color-scheme: dark;
+}
+
+.dark-mode body {
+    background-color: #1A1B26 !important; /* Main content area background for landing page */
+    color: #F0F0F0 !important;  /* Primary light text (off-white) */
+}
+
+/* --- Landing Page Specific Dark Mode Styles --- */
+
+/* Header & Footer with .bg-brand */
+.dark-mode header#mainHeader.bg-brand,
+.dark-mode footer.bg-brand { /* Assuming footer also uses .bg-brand */
+    background-color: #a12731 !important; /* Darker shade of #e63946 */
+}
+.dark-mode header#mainHeader nav a.hover\:text-red-200:hover {
+    color: #fecaca !important; /* Lighter red for hover */
+}
+.dark-mode header#mainHeader nav a.login-button {
+    background-color: #F0F0F0 !important; /* Light background */
+    color: #a12731 !important; /* Darker brand red text */
+}
+.dark-mode header#mainHeader nav a.login-button:hover {
+    background-color: #e0e0e0 !important;
+}
+.dark-mode #mobileMenu.bg-brand { /* Mobile menu background */
+    background-color: #a12731 !important; /* Match header */
+}
+
+
+/* Dark mode toggle button on public page */
+.dark-mode #public-dark-mode-toggle {
+    background-color: rgba(240, 240, 240, 0.1) !important; /* Lighter, semi-transparent on dark */
+    color: #F0F0F0 !important;
+}
+.dark-mode #public-dark-mode-toggle:hover {
+    background-color: rgba(240, 240, 240, 0.2) !important;
+}
+
+/* Hero Section */
+.dark-mode #hero.bg-gradient-to-br { /* Original: from-red-50 to-blue-100 */
+    background-image: linear-gradient(to bottom right, #242535, #1A1B26) !important; /* Dark gradient */
+}
+.dark-mode #hero h1 {
+    color: #F0F0F0 !important;
+}
+.dark-mode #hero h1 span.text-brand {
+    color: #FF7575 !important; /* Lighter brand red */
+}
+.dark-mode #hero p.text-gray-600 {
+    color: #A9A9B3 !important;
+}
+.dark-mode #hero a.bg-brand { /* Get Started Button */
+    background-color: #FF7575 !important;
+    color: #1A1B26 !important; /* Dark text on light button */
+}
+.dark-mode #hero a.bg-brand:hover {
+    background-color: #FF9090 !important;
+}
+.dark-mode #hero a.bg-white { /* Learn More Button */
+    background-color: #28293D !important; /* Dark surface */
+    color: #FF7575 !important; /* Lighter brand red text */
+    border-color: #FF7575 !important;
+}
+.dark-mode #hero a.bg-white:hover {
+    background-color: #34354A !important;
+    color: #FF9090 !important;
+}
+.dark-mode #hero p.text-gray-500 {
+    color: #8A8B9A !important;
+}
+
+/* Why Choose Us Section (bg-white in light mode) */
+.dark-mode #why-us.bg-white {
+    background-color: #1f2937 !important; /* Slightly different dark shade for variety */
+}
+.dark-mode #why-us .section-title.text-brand {
+    color: #FF7575 !important;
+}
+.dark-mode #why-us .section-subtitle, /* text-gray-600 */
+.dark-mode #why-us p.text-gray-600 {
+    color: #A9A9B3 !important;
+}
+.dark-mode #why-us h3.text-gray-900 {
+    color: #F0F0F0 !important;
+}
+.dark-mode #why-us .bg-brand { /* Icon circle background */
+    background-color: #FF7575 !important;
+}
+.dark-mode #why-us .bg-brand i { /* Icon color inside circle */
+    color: #1A1B26 !important;
+}
+
+/* Features Section (bg-gray-50 in light mode) */
+.dark-mode #features.bg-gray-50 {
+    background-color: #1A1B26 !important; /* Main dark background */
+}
+.dark-mode #features .feature-card.bg-white {
+    background-color: #242535 !important; /* Primary dark surface */
+    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5), 0 4px 6px -4px rgba(0,0,0,0.4) !important; /* Darker shadow */
+}
+.dark-mode #features .feature-card:hover {
+    box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5), 0 8px 10px -6px rgba(0,0,0,0.4) !important;
+}
+.dark-mode #features .feature-card .text-brand { /* Icon color */
+    color: #FF7575 !important;
+}
+.dark-mode #features .feature-card h3.text-gray-800 {
+    color: #F0F0F0 !important;
+}
+.dark-mode #features .feature-card p.text-gray-600 {
+    color: #A9A9B3 !important;
+}
+
+/* How It Works Section (bg-white in light mode) */
+.dark-mode #how-it-works.bg-white {
+    background-color: #1f2937 !important;
+}
+.dark-mode #how-it-works .section-title.text-brand {
+    color: #FF7575 !important;
+}
+.dark-mode #how-it-works .bg-brand { /* Numbered circle */
+    background-color: #FF7575 !important;
+    color: #1A1B26 !important;
+}
+.dark-mode #how-it-works h3.text-gray-800 {
+    color: #F0F0F0 !important;
+}
+.dark-mode #how-it-works p.text-gray-600 {
+    color: #A9A9B3 !important;
+}
+
+/* Testimonials Section (bg-gray-50 in light mode) */
+.dark-mode #testimonials.bg-gray-50 {
+    background-color: #1A1B26 !important;
+}
+.dark-mode #testimonials .section-title.text-brand {
+    color: #FF7575 !important;
+}
+.dark-mode #testimonials .testimonial-card.bg-white { /* Testimonial cards */
+    background-color: #242535 !important;
+}
+.dark-mode #testimonials .testimonial-card .text-yellow-400 { /* Star icons */
+    color: #fde047 !important; /* Brighter yellow */
+}
+.dark-mode #testimonials .testimonial-card img.border-brand {
+    border-color: #FF7575 !important;
+}
+.dark-mode #testimonials .testimonial-card p.text-gray-600 {
+    color: #A9A9B3 !important;
+}
+.dark-mode #testimonials .testimonial-card h4.text-gray-800 {
+    color: #F0F0F0 !important;
+}
+.dark-mode #testimonials .testimonial-card p.text-gray-500 {
+    color: #8A8B9A !important;
+}
+
+
+/* FAQ Section (bg-white in light mode) */
+.dark-mode #faq.bg-white { /* Assuming FAQ section has bg-white in light mode */
+    background-color: #1f2937 !important;
+}
+.dark-mode #faq .section-title.text-brand {
+    color: #FF7575 !important;
+}
+.dark-mode #faq .faq-item.bg-gray-50 { /* FAQ items if they have bg-gray-50 */
+    background-color: #242535 !important;
+}
+.dark-mode #faq .faq-item h3.text-gray-800 {
+    color: #F0F0F0 !important;
+}
+.dark-mode #faq .faq-item button i.text-gray-500 { /* Chevron icon */
+    color: #8A8B9A !important;
+}
+.dark-mode #faq .faq-item div.text-gray-600 { /* FAQ answer text */
+    color: #A9A9B3 !important;
+}
+
+
+/* Call to Action / Contact Section (bg-brand in light mode) */
+.dark-mode #contact.bg-brand {
+    background-color: #a12731 !important; /* Darker brand red */
+}
+.dark-mode #contact h2 { /* Assuming it doesn't have text-brand class */
+    color: #F0F0F0 !important;
+}
+.dark-mode #contact p.text-red-100 {
+    color: #fecaca !important; /* Lighter red for subtitle */
+}
+.dark-mode #contact a.bg-white { /* Sign Up Free button */
+    background-color: #F0F0F0 !important;
+    color: #a12731 !important; /* Darker brand red text */
+}
+.dark-mode #contact a.bg-white:hover {
+    background-color: #e0e0e0 !important;
+}
+.dark-mode #contact a.border-white { /* Contact Sales button */
+    border-color: #F0F0F0 !important;
+    color: #F0F0F0 !important;
+}
+.dark-mode #contact a.border-white:hover {
+    background-color: #F0F0F0 !important;
+    color: #a12731 !important;
+}
+
+/* Footer (bg-gray-800 in light mode) */
+.dark-mode footer.bg-gray-800 {
+    background-color: #111827 !important; /* Even darker gray, or #1A1B26 to match body */
+    color: #A9A9B3 !important;
+}
+.dark-mode footer.bg-gray-800 h4.text-white,
+.dark-mode footer.bg-gray-800 a.text-xl { /* Social icons */
+    color: #F0F0F0 !important;
+}
+.dark-mode footer.bg-gray-800 a.hover\:text-brand:hover {
+    color: #FF7575 !important;
+}
+.dark-mode footer.bg-gray-800 hr.border-gray-700 {
+    border-color: #3D3E58 !important;
+}
+.dark-mode footer.bg-gray-800 p.text-gray-400, /* Footer description text */
+.dark-mode footer.bg-gray-800 p.text-gray-500 { /* Copyright text */
+    color: #8A8B9A !important;
+}
+
+/* General Tailwind text color overrides for elements not specifically targeted */
+.dark-mode .text-gray-900 { color: #F0F0F0 !important; }
+.dark-mode .text-gray-800 { color: #F0F0F0 !important; }
+.dark-mode .text-gray-700 { color: #A9A9B3 !important; }
+.dark-mode .text-gray-600 { color: #8A8B9A !important; }
+.dark-mode .text-gray-500 { color: #6C6D7C !important; }
+
+/* Ensure shadows on cards are visible in dark mode */
+.dark-mode .shadow-lg { box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5), 0 4px 6px -4px rgba(0,0,0,0.4) !important; }
+.dark-mode .shadow-xl { box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5), 0 8px 10px -6px rgba(0,0,0,0.4) !important; }
+.dark-mode .shadow-2xl { box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5) !important; }

@@ -386,3 +386,4 @@ html.dark-mode {
 /* Danger Zone specific text (bg-red-50 is handled by .dark-mode .bg-red-500 if we assume it's a darker red) */
 /* If bg-red-50 is meant to be a very light red, we need a new rule: */
 .dark-mode .bg-red-50 { background-color: rgba(200, 40, 40, 0.2) !important; } /* Example: very subtle dark red */
+
