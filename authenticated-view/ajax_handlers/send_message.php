@@ -59,7 +59,7 @@ $access_sql = "SELECT b.user_id as board_owner_id, c.permission_level, pb.board_
               JOIN Planotajs_Users pu ON pu.user_id = ?  -- Join to get actor's username
               JOIN Planotajs_Boards pb ON pb.board_id = ? -- Join to get board name
               WHERE b.board_id = ?
-              AND (b.user_id = ? OR c.permission_level IN ('write', 'admin', 'editor')) -- editor might also send messages
+              AND (b.user_id = ? OR c.permission_level IN ('write', 'admin', 'edit')) -- editor might also send messages
               AND b.is_deleted = 0";
 
 $access_stmt = $connection->prepare($access_sql);
