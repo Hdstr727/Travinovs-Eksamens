@@ -91,28 +91,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt_update = $connection->prepare($sql_update);
             $stmt_update->bind_param("sssii", $board_name, $board_description, $project_tags, $active_board_id, $user_id);
             
+                  
             if ($stmt_update->execute()) {
                 $message = "Project settings updated successfully!";
                 // Refresh board details
-                $stmt_details = $connection->prepare($sql_details); // $sql_details is defined above
-                $stmt_details->bind_param("ii", $active_board_id, $user_id);
-                $stmt_details->execute();
-                $result_details = $stmt_details->get_result();
-                $board_details = $result_details->fetch_assoc();
-                $stmt_details->close();
+                $sql_details = "SELECT * FROM Planotajs_Boards WHERE board_id = ? AND user_id = ?"; // Re-define or ensure it's in scope
+                $stmt_details_refresh = $connection->prepare($sql_details);
+                $stmt_details_refresh->bind_param("ii", $active_board_id, $user_id);
+                $stmt_details_refresh->execute();
+                $result_details_refresh = $stmt_details_refresh->get_result();
+                $board_details = $result_details_refresh->fetch_assoc();
+                $stmt_details_refresh->close();
 
-                 // Refresh board list in sidebar as name might have changed
-                $stmt_boards->execute(); // Re-execute the existing prepared statement for boards
-                $result_boards = $stmt_boards->get_result();
-                $boards = [];
-                while ($board = $result_boards->fetch_assoc()) {
-                    $boards[] = $board;
+                // Refresh board list in sidebar as name might have changed
+                // Re-prepare the statement for boards
+                $sql_boards_refresh = "SELECT board_id, board_name
+                                       FROM Planotajs_Boards
+                                       WHERE user_id = ? AND is_deleted = 0
+                                       ORDER BY board_name ASC";
+                $stmt_boards_refresh = $connection->prepare($sql_boards_refresh); // Use a new variable name or re-assign $stmt_boards
+                $stmt_boards_refresh->bind_param("i", $user_id);
+                $stmt_boards_refresh->execute();
+                $result_boards_refresh = $stmt_boards_refresh->get_result();
+                $boards = []; // Reset the boards array
+                while ($board_item = $result_boards_refresh->fetch_assoc()) { // Use a different loop variable
+                    $boards[] = $board_item;
                 }
-                // $stmt_boards->close(); // Don't close if you might re-use it, or re-prepare
+                $stmt_boards_refresh->close(); // Close the newly prepared statement
+
             } else {
                 $error = "Error updating project settings: " . $connection->error;
             }
             $stmt_update->close();
+
+    
         } else {
             $error = "Project name cannot be empty!";
         }

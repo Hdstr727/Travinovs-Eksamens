@@ -1,4 +1,5 @@
 <?php
+//ajax-handlers/save-column.php
 session_start();
 require_once '../../admin/database/connection.php'; // Adjust path
 
