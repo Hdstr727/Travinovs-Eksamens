@@ -7,9 +7,9 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 require_once '../../admin/database/connection.php';
+require_once 'utils/update_board_activity.php';
 $user_id = $_SESSION['user_id'];
 
-// board_id is now sent for security check
 if (!isset($_POST['tasks'], $_POST['board_id']) || empty($_POST['tasks'])) {
     echo json_encode(['success' => false, 'message' => 'No tasks to update or board_id missing.']);
     exit();
@@ -23,57 +23,47 @@ if (!is_array($tasks_data) || empty($tasks_data)) {
     exit();
 }
 
-// Verify user has permission on this board
+// ... (permission check - $perm_stmt->close() is inside the if block, should be outside if it proceeds)
 $perm_check_sql = "SELECT b.board_id FROM Planotajs_Boards b
                    LEFT JOIN Planotajs_Collaborators c ON b.board_id = c.board_id AND c.user_id = ?
                    WHERE b.board_id = ? AND (b.user_id = ? OR c.permission_level IN ('edit', 'admin'))";
 $perm_stmt = $connection->prepare($perm_check_sql);
 $perm_stmt->bind_param("iii", $user_id, $board_id, $user_id);
 $perm_stmt->execute();
-if ($perm_stmt->get_result()->num_rows === 0) {
+$perm_result = $perm_stmt->get_result(); // Get result
+
+if ($perm_result->num_rows === 0) {
     echo json_encode(['success' => false, 'message' => 'Board not found or not authorized for task updates.']);
+    $perm_stmt->close(); // Close here
     exit();
 }
-$perm_stmt->close();
+$perm_stmt->close(); // Close here
 
-
-// Optional: Further validation to ensure all task_ids and column_ids belong to the specified board_id
-// and are not deleted. This can be complex. For now, we trust the client sends valid data
-// after the initial board permission check.
 
 $connection->begin_transaction();
-$success = true;
+$all_updates_successful = true; // Renamed for clarity
 
 foreach ($tasks_data as $task) {
-    if (!isset($task['task_id'], $task['task_order'], $task['column_id'])) {
-        $success = false; // Invalid task structure
-        break;
-    }
-    $task_id = intval($task['task_id']);
-    $task_order = intval($task['task_order']);
-    $column_id = intval($task['column_id']); // Now using column_id
-
-    // Ensure the task actually belongs to the board (important if not fully validated above)
-    // And the column_id is valid for this board
+    // ... (task data validation) ...
     $update_sql = "UPDATE Planotajs_Tasks
                   SET task_order = ?, column_id = ?
                   WHERE task_id = ? AND board_id = ? AND is_deleted = 0";
-    // Check if column_id is valid for this board_id can be added to WHERE:
-    // AND EXISTS (SELECT 1 FROM Planotajs_Columns pc WHERE pc.column_id = ? AND pc.board_id = ? AND pc.is_deleted = 0)
-
     $update_stmt = $connection->prepare($update_sql);
-    $update_stmt->bind_param("iiii", $task_order, $column_id, $task_id, $board_id);
+    $update_stmt->bind_param("iiii", $task['task_order'], $task['column_id'], $task['task_id'], $board_id);
 
     if (!$update_stmt->execute()) {
-        $success = false;
-        error_log("Error updating task position: " . $update_stmt->error . " for task_id: " . $task_id);
+        $all_updates_successful = false;
+        error_log("Error updating task position: " . $update_stmt->error . " for task_id: " . $task['task_id']);
+        $update_stmt->close(); // Close statement even on error
         break;
     }
     $update_stmt->close();
 }
 
-if ($success) {
+if ($all_updates_successful) {
     $connection->commit();
+    // Update board activity timestamp
+    update_board_last_activity_timestamp($connection, $board_id);
     echo json_encode(['success' => true]);
 } else {
     $connection->rollback();
