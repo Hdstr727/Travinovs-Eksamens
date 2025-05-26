@@ -33,27 +33,73 @@ $board_count_result = $board_stmt->get_result()->fetch_assoc();
 $board_count = $board_count_result ? $board_count_result['count'] : 0;
 $board_stmt->close();
 
-// For now, we'll use placeholder values for tasks and deadlines
-$completed_tasks = 0;
-$upcoming_deadlines = 0;
+// --- Get count of tasks created by the logged-in user ---
+// This assumes you have a way to identify the creator of a task.
+// If Planotajs_Tasks doesn't have a 'created_by_user_id' column, this will be tricky.
+// For now, let's assume we count tasks on boards they own or are a collaborator on.
+// A more accurate "tasks created by me" would require a 'creator_id' in Planotajs_Tasks.
+// This query counts all non-deleted tasks on boards the user has access to.
+// If you want tasks *literally created by* this user, you'll need to add a `created_by_user_id`
+// to your `Planotajs_Tasks` table and update your `save_task.php` to populate it.
+
+// For "My Tasks Created" - let's count tasks on boards they own or are a collaborator on,
+// and for simplicity, assume any task on these boards is "their" task in a broad sense.
+// A more precise "created by me" would need a `creator_user_id` in the tasks table.
+// This query counts tasks on boards the user owns.
+$my_tasks_created_sql = "SELECT COUNT(t.task_id) as count
+                         FROM Planotajs_Tasks t
+                         JOIN Planotajs_Boards b ON t.board_id = b.board_id
+                         WHERE b.user_id = ? AND t.is_deleted = 0";
+// If you want to include tasks on boards they collaborate on:
+/*
+$my_tasks_created_sql = "SELECT COUNT(DISTINCT t.task_id) as count
+                         FROM Planotajs_Tasks t
+                         WHERE t.is_deleted = 0 AND t.board_id IN (
+                             SELECT board_id FROM Planotajs_Boards WHERE user_id = ? AND is_deleted = 0
+                             UNION
+                             SELECT board_id FROM Planotajs_Collaborators WHERE user_id = ?
+                         )";
+*/
+$my_tasks_stmt = $connection->prepare($my_tasks_created_sql);
+// If using the more complex query with UNION, bind twice: $my_tasks_stmt->bind_param("ii", $user_id, $user_id);
+$my_tasks_stmt->bind_param("i", $user_id);
+$my_tasks_stmt->execute();
+$my_tasks_result = $my_tasks_stmt->get_result()->fetch_assoc();
+$my_tasks_created_count = $my_tasks_result ? $my_tasks_result['count'] : 0;
+$my_tasks_stmt->close();
+
+
+// --- Get count of upcoming deadlines (due in the next 7 days) for this user's tasks ---
+$today = date('Y-m-d');
+$seven_days_later = date('Y-m-d', strtotime('+7 days'));
+
+// This query counts tasks due in the next 7 days on boards the user has access to.
+$upcoming_deadlines_sql = "SELECT COUNT(DISTINCT t.task_id) as count
+                           FROM Planotajs_Tasks t
+                           WHERE t.is_deleted = 0 AND t.is_completed = 0
+                             AND t.due_date BETWEEN ? AND ?
+                             AND t.board_id IN (
+                                 SELECT board_id FROM Planotajs_Boards WHERE user_id = ? AND is_deleted = 0
+                                 UNION
+                                 SELECT board_id FROM Planotajs_Collaborators WHERE user_id = ?
+                             )";
+$deadlines_stmt = $connection->prepare($upcoming_deadlines_sql);
+$deadlines_stmt->bind_param("ssii", $today, $seven_days_later, $user_id, $user_id);
+$deadlines_stmt->execute();
+$deadlines_result = $deadlines_stmt->get_result()->fetch_assoc();
+$upcoming_deadlines_count = $deadlines_result ? $deadlines_result['count'] : 0;
+$deadlines_stmt->close();
+
 
 $username = $user['username'] ?? ($_SESSION['username'] ?? 'User');
-
-
 $db_profile_picture_path = $user['profile_picture'] ?? null;
-
-
 $full_server_path_to_picture = null;
 if ($db_profile_picture_path) {
-  
     $full_server_path_to_picture = __DIR__ . '/core/' . $db_profile_picture_path;
-   
 }
 
 if (!empty($db_profile_picture_path) && $full_server_path_to_picture && file_exists($full_server_path_to_picture)) {
-   
     $user_avatar = 'core/' . $db_profile_picture_path;
-    
 } else {
     $user_avatar = "https://ui-avatars.com/api/?name=" . urlencode($username) . "&background=e63946&color=fff";
 }
@@ -69,7 +115,6 @@ if ($hour < 12) {
 }
 
 $boards = [];
-
 // Fetch user's own boards from database
 $own_boards_sql = "SELECT board_id, board_name, board_type, updated_at, 'owner' as access_type
                   FROM Planotajs_Boards
@@ -79,15 +124,16 @@ $own_boards_stmt->bind_param("i", $user_id);
 $own_boards_stmt->execute();
 $own_boards_result = $own_boards_stmt->get_result();
 
+// Store raw updated_at for sorting, then format
 while ($board = $own_boards_result->fetch_assoc()) {
-    $page = ($board['board_type'] === 'kanban') ? 'kanban.php' : 'kanban.php'; // Default to kanban
-    $updated_time = strtotime($board['updated_at']);
-    $time_diff = time() - $updated_time;
-    $days_ago = floor($time_diff / (60 * 60 * 24));
-    if ($days_ago == 0) $last_updated = "Updated today";
-    elseif ($days_ago == 1) $last_updated = "Updated yesterday";
-    else $last_updated = "Updated $days_ago days ago";
-    $boards[] = ['id' => $board['board_id'], 'name' => $board['board_name'], 'page' => $page, 'updated' => $last_updated, 'access_type' => $board['access_type']];
+    $page = ($board['board_type'] === 'kanban') ? 'kanban.php' : 'kanban.php';
+    $boards[] = [
+        'id' => $board['board_id'],
+        'name' => $board['board_name'],
+        'page' => $page,
+        'raw_updated_at' => $board['updated_at'], // Store raw timestamp
+        'access_type' => $board['access_type']
+    ];
 }
 $own_boards_stmt->close();
 
@@ -105,24 +151,34 @@ $shared_boards_result = $shared_boards_stmt->get_result();
 
 while ($board = $shared_boards_result->fetch_assoc()) {
     $page = ($board['board_type'] === 'kanban') ? 'kanban.php' : 'kanban.php';
-    $updated_time = strtotime($board['updated_at']);
-    $time_diff = time() - $updated_time;
-    $days_ago = floor($time_diff / (60 * 60 * 24));
-    if ($days_ago == 0) $last_updated = "Updated today";
-    elseif ($days_ago == 1) $last_updated = "Updated yesterday";
-    else $last_updated = "Updated $days_ago days ago";
-    $boards[] = ['id' => $board['board_id'], 'name' => $board['board_name'], 'page' => $page, 'updated' => $last_updated, 'access_type' => $board['access_type'], 'owner_name' => $board['owner_name']];
+    $boards[] = [
+        'id' => $board['board_id'],
+        'name' => $board['board_name'],
+        'page' => $page,
+        'raw_updated_at' => $board['updated_at'], // Store raw timestamp
+        'access_type' => $board['access_type'],
+        'owner_name' => $board['owner_name']
+    ];
 }
 $shared_boards_stmt->close();
 
-// Sort boards: a more robust way is to sort by the actual timestamp before formatting
+// Sort boards by raw_updated_at in descending order
 usort($boards, function($a, $b) {
-    // This assumes 'updated' still holds a string like "Updated X days ago"
-    // For a more accurate sort, you'd need to sort on the raw 'updated_at' timestamp
-    // before it's converted to the "X days ago" string, or convert these strings back to comparable values.
-    // For simplicity, keeping your current sort logic.
-    return strcmp($b['updated'], $a['updated']);
+    return strtotime($b['raw_updated_at']) - strtotime($a['raw_updated_at']);
 });
+
+// Now format the 'updated' string after sorting
+foreach ($boards as $key => $board) {
+    $updated_time = strtotime($board['raw_updated_at']);
+    $time_diff = time() - $updated_time;
+    $days_ago = floor($time_diff / (60 * 60 * 24));
+
+    if ($days_ago == 0) $last_updated = "Updated today";
+    elseif ($days_ago == 1) $last_updated = "Updated yesterday";
+    else $last_updated = "Updated $days_ago days ago";
+    $boards[$key]['updated'] = $last_updated;
+}
+
 
 // Get unread notifications count
 $unread_notifications_count = 0;
@@ -138,7 +194,6 @@ if ($stmt_count) {
 } else {
     error_log("Failed to prepare statement for unread notifications count: " . $connection->error);
 }
-// $connection->close(); // Don't close connection if other parts of the page might need it. Usually closed at script end.
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -152,7 +207,6 @@ if ($stmt_count) {
         .hover-scale { transition: transform 0.2s ease; }
         .hover-scale:hover { transform: scale(1.05); }
         .badge { font-size: 0.65rem; padding: 0.15rem 0.5rem; border-radius: 9999px; }
-        /* Ensure notification items are clickable */
         .notification-item > a, .notification-item > div[data-id] { cursor: pointer; }
     </style>
 </head>
@@ -172,7 +226,6 @@ if ($stmt_count) {
                                 <?php echo $unread_notifications_count; ?>
                             </span>
                         <?php else: ?>
-                            <!-- Ensure badge element exists for JS even if count is 0, but hidden -->
                             <span id="notification-count-badge" class="absolute top-0 right-0 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center" style="display: none;"></span>
                         <?php endif; ?>
                     </button>
@@ -220,12 +273,12 @@ if ($stmt_count) {
                 <p class="text-gray-600">Total Boards</p>
             </div>
             <div class="bg-white p-6 rounded-lg shadow-md text-center card">
-                <p class="text-lg font-semibold text-[#e63946]"><?php echo $completed_tasks; ?></p>
-                <p class="text-gray-600">Tasks Completed</p>
+                <p class="text-lg font-semibold text-[#e63946]"><?php echo $my_tasks_created_count; // CHANGED ?></p>
+                <p class="text-gray-600">My Tasks Created</p> <!-- CHANGED -->
             </div>
             <div class="bg-white p-6 rounded-lg shadow-md text-center card">
-                <p class="text-lg font-semibold text-[#e63946]"><?php echo $upcoming_deadlines; ?></p>
-                <p class="text-gray-600">Upcoming Deadlines</p>
+                <p class="text-lg font-semibold text-[#e63946]"><?php echo $upcoming_deadlines_count; // CHANGED ?></p>
+                <p class="text-gray-600">Upcoming Deadlines (Next 7 Days)</p> <!-- CHANGED -->
             </div>
         </div>
 
@@ -243,17 +296,27 @@ if ($stmt_count) {
             <?php if (count($boards) > 0): ?>
                 <div class='grid md:grid-cols-3 gap-6'>
                 <?php foreach ($boards as $board):
-                    $badgeColor = "bg-blue-100 text-blue-800";
-                    $badgeText = isset($board['owner_name']) ? "Shared by " . htmlspecialchars($board['owner_name']) : "Shared";
-                    if (!isset($board['owner_name'])) {
+                    $badgeColor = "bg-blue-100 text-blue-800"; // Default for shared
+                    $badgeText = "";
+
+                    if ($board['access_type'] === 'owner') {
                         $badgeColor = "bg-green-100 text-green-800";
                         $badgeText = "Owner";
-                    } elseif ($board['access_type'] == 'editor') {
-                        $badgeColor = "bg-yellow-100 text-yellow-800";
-                        $badgeText = "Editor • " . $badgeText;
-                    } elseif ($board['access_type'] == 'viewer') {
-                        $badgeColor = "bg-gray-100 text-gray-800";
-                        $badgeText = "Viewer • " . $badgeText;
+                    } elseif (isset($board['owner_name'])) { // It's a shared board
+                        $badgeText = "Shared by " . htmlspecialchars($board['owner_name']);
+                        if ($board['access_type'] === 'admin') { // For collaborators
+                             $badgeColor = "bg-purple-100 text-purple-800"; // Example for admin collaborator
+                             $badgeText = "Admin • " . $badgeText;
+                        } elseif ($board['access_type'] === 'edit') { // 'edit' for collaborators
+                            $badgeColor = "bg-yellow-100 text-yellow-800";
+                            $badgeText = "Editor • " . $badgeText;
+                        } elseif ($board['access_type'] === 'view') { // 'view' for collaborators
+                            $badgeColor = "bg-gray-100 text-gray-800";
+                            $badgeText = "Viewer • " . $badgeText;
+                        }
+                    } else {
+                        // Fallback for shared if owner_name somehow not set, though query should provide it
+                        $badgeText = "Shared";
                     }
                 ?>
                     <a href='<?php echo htmlspecialchars($board['page']); ?>?board_id=<?php echo $board['id']; ?>' class='bg-white p-6 rounded-lg shadow-md hover-scale card'>
@@ -280,8 +343,6 @@ if ($stmt_count) {
                         <p class="text-gray-600">Select a template:</p>
                         <select id="board-template-modal" class="w-full p-2 border border-gray-300 rounded-lg mt-2 focus:ring-2 focus:ring-[#e63946]">
                             <option value="kanban">Kanban</option>
-                            <!-- <option value="gantt">Gantt Chart</option>
-                            <option value="goal-tracker">Goal Tracker</option> -->
                         </select>
                     </div>
                     <div class="flex justify-end mt-6">
@@ -297,7 +358,12 @@ if ($stmt_count) {
             <h3 class="text-xl font-semibold text-gray-700 mb-4">Upcoming Deadlines</h3>
             <div class="bg-white p-6 rounded-lg shadow-md card">
                 <div class="space-y-4">
-                    <p class="text-sm text-gray-500">No upcoming deadlines.</p>
+                    <?php if ($upcoming_deadlines_count > 0): ?>
+                        <p class="text-sm text-gray-700">You have <?php echo $upcoming_deadlines_count; ?> task(s) due in the next 7 days.</p>
+                        <!-- Optionally, list a few tasks here -->
+                    <?php else: ?>
+                        <p class="text-sm text-gray-500">No upcoming deadlines in the next 7 days.</p>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -326,26 +392,22 @@ if ($stmt_count) {
     <script>
         // Dark Mode Toggle Script
         document.addEventListener('DOMContentLoaded', function () {
-
             const darkModeToggle = document.getElementById('dark-mode-toggle');
-            const htmlElement = document.documentElement; // Target <html> element
-
+            const htmlElement = document.documentElement;
             function setDarkMode(isDark) {
                 if (isDark) {
                     htmlElement.classList.add('dark-mode');
-                    if (darkModeToggle) darkModeToggle.textContent = '☀️'; // Sun icon
+                    if (darkModeToggle) darkModeToggle.textContent = '☀️';
                 } else {
                     htmlElement.classList.remove('dark-mode');
-                    if (darkModeToggle) darkModeToggle.textContent = '🌙'; // Moon icon
+                    if (darkModeToggle) darkModeToggle.textContent = '🌙';
                 }
             }
-
             if (localStorage.getItem('darkMode') === 'true') {
                 setDarkMode(true); 
             } else {
                 setDarkMode(false); 
             }
-
             if (darkModeToggle) { 
                 darkModeToggle.addEventListener('click', () => {
                     const isCurrentlyDark = htmlElement.classList.contains('dark-mode');
@@ -357,95 +419,68 @@ if ($stmt_count) {
         // Profile Dropdown Script
         const profileToggle = document.getElementById('profile-toggle');
         const profileDropdown = document.getElementById('profile-dropdown');
-        profileToggle.addEventListener('click', (e) => {
-            e.stopPropagation();
-            profileDropdown.classList.toggle('hidden');
-            notificationsDropdown.classList.add('hidden'); // Close other dropdown
-        });
+        if (profileToggle && profileDropdown) {
+            profileToggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                profileDropdown.classList.toggle('hidden');
+                if (notificationsDropdown) notificationsDropdown.classList.add('hidden');
+            });
+        }
 
         // Notifications Dropdown Script
         const notificationsToggle = document.getElementById('notifications-toggle');
         const notificationsDropdown = document.getElementById('notifications-dropdown');
         const notificationsList = document.getElementById('notifications-list');
-        // const notificationCountBadge = document.getElementById('notification-count-badge'); // Already available via PHP or created by JS
         const markAllReadBtn = document.getElementById('mark-all-read');
 
         function fetchNotifications() {
-            console.log("JS: fetchNotifications called"); // DEBUG
             fetch('ajax_handlers/get_notifications.php')
-                .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Network response was not ok ' + response.statusText);
-                    }
-                    return response.json();
-                })
+                .then(response => response.json())
                 .then(data => {
-                    console.log("JS: Data received from get_notifications:", data); // DEBUG
                     if (data.success) {
                         renderNotifications(data.notifications);
                         updateUnreadCount(data.unread_count);
                     } else {
                         notificationsList.innerHTML = `<p class="text-sm text-red-500">Error: ${data.error || 'Could not load notifications.'}</p>`;
-                        console.error("JS: Error from get_notifications:", data.error); // DEBUG
                     }
                 })
                 .catch(error => {
-                    console.error('JS: Error fetching notifications:', error); // DEBUG
-                    notificationsList.innerHTML = '<p class="text-sm text-red-500">Error fetching notifications. Please try again.</p>';
+                    notificationsList.innerHTML = '<p class="text-sm text-red-500">Error fetching notifications.</p>';
                 });
         }
 
         function renderNotifications(notifications) {
-            console.log("JS: renderNotifications called with:", notifications); // DEBUG
             if (!notifications || notifications.length === 0) {
                 notificationsList.innerHTML = '<p class="text-sm text-gray-600">No new notifications.</p>';
                 return;
             }
-
             let html = '';
             notifications.forEach(notif => {
                 const isUnreadClass = notif.is_read == 0 ? 'font-semibold bg-sky-50' : 'text-gray-700';
-                // Ensure message and created_at are treated as strings to prevent XSS if they aren't already escaped server-side
-                const messageText = String(notif.message || '');
-                const createdAtText = String(notif.formatted_created_at || '');
-
+                const messageText = String(notif.message || '').replace(/</g, "<").replace(/>/g, ">");
+                const createdAtText = String(notif.formatted_created_at || '').replace(/</g, "<").replace(/>/g, ">");
                 const linkHtml = notif.link ?
                     `<a href="${encodeURI(notif.link)}" class="block hover:bg-gray-100 p-2 rounded ${isUnreadClass}" data-id="${notif.notification_id}">` :
                     `<div class="p-2 ${isUnreadClass}" data-id="${notif.notification_id}">`;
                 const linkEndHtml = notif.link ? `</a>` : `</div>`;
-
-                html += `
-                    <div class="notification-item border-b border-gray-200 last:border-b-0">
-                        ${linkHtml}
-                            <p class="text-sm ">${messageText.replace(/</g, "<").replace(/>/g, ">")}</p>
-                            <p class="text-xs text-gray-500 mt-1">${createdAtText.replace(/</g, "<").replace(/>/g, ">")}</p>
-                        ${linkEndHtml}
-                    </div>
-                `;
+                html += `<div class="notification-item border-b border-gray-200 last:border-b-0">${linkHtml}<p class="text-sm ">${messageText}</p><p class="text-xs text-gray-500 mt-1">${createdAtText}</p>${linkEndHtml}</div>`;
             });
             notificationsList.innerHTML = html;
-
             document.querySelectorAll('.notification-item a, .notification-item div[data-id]').forEach(item => {
                 item.addEventListener('click', function(e) {
                     const notificationId = this.dataset.id;
                     const isLink = this.tagName === 'A';
-                    // Only mark as read if it's unread (check class or a data attribute)
-                    const isCurrentlyUnread = this.classList.contains('font-semibold'); // Or check notif.is_read from original data if needed
-
+                    const isCurrentlyUnread = this.classList.contains('font-semibold');
                     if (isCurrentlyUnread) {
                         markNotificationAsRead(notificationId, !isLink);
                     }
-                    if (!isLink) { // If it's not a link, it's just a div, stop propagation
-                        e.stopPropagation();
-                    }
-                    // If it IS a link, let the default browser navigation happen.
+                    if (!isLink) e.stopPropagation();
                 });
             });
         }
 
         function updateUnreadCount(count) {
-            console.log("JS: updateUnreadCount called with count:", count); // DEBUG
-            let badge = document.getElementById('notification-count-badge'); // This ID should exist from PHP
+            let badge = document.getElementById('notification-count-badge');
             if (badge) {
                 if (count > 0) {
                     badge.textContent = count;
@@ -454,92 +489,60 @@ if ($stmt_count) {
                     badge.textContent = '';
                     badge.style.display = 'none';
                 }
-            } else {
-                console.error("JS: Notification count badge element not found!"); // DEBUG
             }
         }
 
         function markNotificationAsRead(notificationId, refreshList = true) {
-            console.log("JS: markNotificationAsRead called for ID:", notificationId, "Refresh list:", refreshList); // DEBUG
             const formData = new FormData();
             formData.append('notification_id', notificationId);
-
-            fetch('ajax_handlers/mark_notification_read.php', {
-                method: 'POST',
-                body: formData
-            })
+            fetch('ajax_handlers/mark_notification_read.php', { method: 'POST', body: formData })
             .then(response => response.json())
             .then(data => {
-                console.log("JS: Response from mark_notification_read:", data); // DEBUG
                 if (data.success) {
                     if (refreshList) {
-                        fetchNotifications(); // Refresh the list to show it as read and update count
+                        fetchNotifications();
                     } else {
-                        // Manually update UI for the clicked item if not refreshing whole list
                         const itemClicked = notificationsList.querySelector(`.notification-item [data-id="${notificationId}"]`);
                         if (itemClicked) {
                             itemClicked.classList.remove('font-semibold', 'bg-sky-50');
-                            itemClicked.classList.add('text-gray-700'); // Or whatever your read style is
+                            itemClicked.classList.add('text-gray-700');
                         }
-                        // Visually decrement count
                         let currentBadge = document.getElementById('notification-count-badge');
                         if (currentBadge) {
                            let currentCount = parseInt(currentBadge.textContent || "0");
-                           if (currentCount > 0) {
-                               updateUnreadCount(currentCount - 1);
-                           }
+                           if (currentCount > 0) updateUnreadCount(currentCount - 1);
                         }
                     }
-                } else {
-                    console.error("JS: Failed to mark notification as read - server error:", data.error); //DEBUG
                 }
-            })
-            .catch(error => console.error('JS: Error marking notification as read:', error)); // DEBUG
+            });
+        }
+        if (markAllReadBtn) {
+            markAllReadBtn.addEventListener('click', function(e) {
+                e.preventDefault(); e.stopPropagation();
+                const formData = new FormData();
+                formData.append('mark_all', 'true');
+                fetch('ajax_handlers/mark_notification_read.php', { method: 'POST', body: formData })
+                .then(response => response.json()).then(data => { if (data.success) fetchNotifications(); });
+            });
+        }
+        if (notificationsToggle && notificationsDropdown) {
+            notificationsToggle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isHidden = notificationsDropdown.classList.toggle('hidden');
+                if (profileDropdown) profileDropdown.classList.add('hidden');
+                if (!isHidden) fetchNotifications();
+            });
         }
 
-        markAllReadBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            console.log("JS: Mark all as read clicked"); // DEBUG
-            const formData = new FormData();
-            formData.append('mark_all', 'true');
-
-            fetch('ajax_handlers/mark_notification_read.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                console.log("JS: Response from mark_all_read:", data); // DEBUG
-                if (data.success) {
-                    fetchNotifications();
-                } else {
-                    console.error("JS: Failed to mark all as read - server error:", data.error); //DEBUG
-                }
-            })
-            .catch(error => console.error('JS: Error marking all notifications as read:', error)); // DEBUG
-        });
-
-        notificationsToggle.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const isHidden = notificationsDropdown.classList.toggle('hidden');
-            profileDropdown.classList.add('hidden'); // Close other dropdown
-            if (!isHidden) {
-                fetchNotifications();
-            }
-        });
-
-        // Close dropdowns when clicking outside
         document.addEventListener('click', (e) => {
-            if (!notificationsToggle.contains(e.target) && !notificationsDropdown.contains(e.target)) {
+            if (notificationsDropdown && !notificationsToggle.contains(e.target) && !notificationsDropdown.contains(e.target)) {
                 notificationsDropdown.classList.add('hidden');
             }
-            if (!profileToggle.contains(e.target) && !profileDropdown.contains(e.target)) {
+            if (profileDropdown && !profileToggle.contains(e.target) && !profileDropdown.contains(e.target)) {
                 profileDropdown.classList.add('hidden');
             }
         });
 
-        // Add Board Modal Script
         const addBoardBtn = document.getElementById('add-board-btn');
         const addBoardModal = document.getElementById('add-board-modal');
         const closeModalBtn = document.getElementById('close-modal-btn');
@@ -547,17 +550,9 @@ if ($stmt_count) {
         const boardNameModalInput = document.getElementById('board-name-modal');
         const boardTemplateModalSelect = document.getElementById('board-template-modal');
 
-        if (addBoardBtn) {
-            addBoardBtn.addEventListener('click', () => addBoardModal.classList.remove('hidden'));
-        }
-        if (closeModalBtn) {
-            closeModalBtn.addEventListener('click', () => addBoardModal.classList.add('hidden'));
-        }
-        if (addBoardModal) {
-            addBoardModal.addEventListener('click', function(e) {
-                if (e.target === this) this.classList.add('hidden');
-            });
-        }
+        if (addBoardBtn) addBoardBtn.addEventListener('click', () => addBoardModal.classList.remove('hidden'));
+        if (closeModalBtn) closeModalBtn.addEventListener('click', () => addBoardModal.classList.add('hidden'));
+        if (addBoardModal) addBoardModal.addEventListener('click', function(e) { if (e.target === this) this.classList.add('hidden'); });
         if (createBoardBtn) {
             createBoardBtn.addEventListener('click', () => {
                 const boardName = boardNameModalInput.value.trim();
@@ -576,22 +571,12 @@ if ($stmt_count) {
                             alert(`Error creating board: ${data.message || 'Unknown error'}`);
                         }
                     })
-                    .catch(error => {
-                        console.error('Error creating board:', error);
-                        alert('An error occurred while creating the board.');
-                    });
+                    .catch(error => alert('An error occurred while creating the board.'));
                 } else {
                     alert('Please enter a board name.');
                 }
             });
         }
-
-        // Optional: Initial fetch of notifications if you want the badge to be live without a click
-        // but only if you don't have polling enabled, to avoid too many initial requests.
-        // fetchNotifications(); // Uncomment if you want this behavior.
-
-        // Optional: Polling for notifications
-        // setInterval(fetchNotifications, 30000); // e.g., every 30 seconds
     </script>
 </body>
 </html>
