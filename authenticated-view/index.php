@@ -69,26 +69,65 @@ $my_tasks_created_count = $my_tasks_result ? $my_tasks_result['count'] : 0;
 $my_tasks_stmt->close();
 
 
-// --- Get count of upcoming deadlines (due in the next 7 days) for this user's tasks ---
+/// --- Get count AND DETAILS of upcoming deadlines (due in the next 7 days) for this user's tasks ---
 $today = date('Y-m-d');
 $seven_days_later = date('Y-m-d', strtotime('+7 days'));
 
-// This query counts tasks due in the next 7 days on boards the user has access to.
-$upcoming_deadlines_sql = "SELECT COUNT(DISTINCT t.task_id) as count
-                           FROM Planotajs_Tasks t
-                           WHERE t.is_deleted = 0 AND t.is_completed = 0
-                             AND t.due_date BETWEEN ? AND ?
-                             AND t.board_id IN (
-                                 SELECT board_id FROM Planotajs_Boards WHERE user_id = ? AND is_deleted = 0
-                                 UNION
-                                 SELECT board_id FROM Planotajs_Collaborators WHERE user_id = ?
-                             )";
-$deadlines_stmt = $connection->prepare($upcoming_deadlines_sql);
-$deadlines_stmt->bind_param("ssii", $today, $seven_days_later, $user_id, $user_id);
-$deadlines_stmt->execute();
-$deadlines_result = $deadlines_stmt->get_result()->fetch_assoc();
-$upcoming_deadlines_count = $deadlines_result ? $deadlines_result['count'] : 0;
-$deadlines_stmt->close();
+// --- Query 1: Get the TOTAL count of upcoming deadlines ---
+$total_upcoming_deadlines_count = 0;
+$count_deadlines_sql = "SELECT COUNT(DISTINCT t.task_id) as count
+                        FROM Planotajs_Tasks t
+                        WHERE t.is_deleted = 0 AND t.is_completed = 0
+                          AND DATE(t.due_date) BETWEEN ? AND ?
+                          AND t.board_id IN (
+                              SELECT board_id FROM Planotajs_Boards WHERE user_id = ? AND is_deleted = 0
+                              UNION
+                              SELECT board_id FROM Planotajs_Collaborators WHERE user_id = ?
+                          )";
+$count_deadlines_stmt = $connection->prepare($count_deadlines_sql);
+if ($count_deadlines_stmt) {
+    $count_deadlines_stmt->bind_param("ssii", $today, $seven_days_later, $user_id, $user_id);
+    $count_deadlines_stmt->execute();
+    $count_deadlines_result = $count_deadlines_stmt->get_result()->fetch_assoc();
+    if ($count_deadlines_result) {
+        $total_upcoming_deadlines_count = $count_deadlines_result['count'];
+    }
+    $count_deadlines_stmt->close();
+} else {
+    error_log("Failed to prepare statement for total upcoming deadlines count: " . $connection->error);
+}
+
+
+// --- Query 2: Get DETAILS for a limited list of upcoming tasks ---
+$upcoming_tasks_details = []; // Array to store task details
+$details_deadlines_sql = "SELECT t.task_id, t.task_name, t.due_date, t.board_id, b.board_name
+                          FROM Planotajs_Tasks t
+                          JOIN Planotajs_Boards b ON t.board_id = b.board_id
+                          WHERE t.is_deleted = 0 AND t.is_completed = 0
+                            AND DATE(t.due_date) BETWEEN ? AND ?
+                            AND t.board_id IN (
+                                SELECT board_id FROM Planotajs_Boards WHERE user_id = ? AND is_deleted = 0
+                                UNION
+                                SELECT board_id FROM Planotajs_Collaborators WHERE user_id = ?
+                            )
+                          ORDER BY t.due_date ASC, CASE t.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END ASC
+                          LIMIT 5"; // Limit how many tasks you list on the dashboard, e.g., 5 or 10
+$details_deadlines_stmt = $connection->prepare($details_deadlines_sql);
+if ($details_deadlines_stmt) {
+    $details_deadlines_stmt->bind_param("ssii", $today, $seven_days_later, $user_id, $user_id);
+    $details_deadlines_stmt->execute();
+    $details_deadlines_result = $details_deadlines_stmt->get_result();
+    while ($task = $details_deadlines_result->fetch_assoc()) {
+        $upcoming_tasks_details[] = $task;
+    }
+    $details_deadlines_stmt->close();
+} else {
+    error_log("Failed to prepare statement for upcoming deadline details: " . $connection->error);
+}
+
+// The variable for the displayed count should be the total count
+$upcoming_deadlines_display_count = $total_upcoming_deadlines_count;
+
 
 
 $username = $user['username'] ?? ($_SESSION['username'] ?? 'User');
@@ -273,12 +312,12 @@ if ($stmt_count) {
                 <p class="text-gray-600">Total Boards</p>
             </div>
             <div class="bg-white p-6 rounded-lg shadow-md text-center card">
-                <p class="text-lg font-semibold text-[#e63946]"><?php echo $my_tasks_created_count; // CHANGED ?></p>
-                <p class="text-gray-600">My Tasks Created</p> <!-- CHANGED -->
+                <p class="text-lg font-semibold text-[#e63946]"><?php echo $my_tasks_created_count; ?></p>
+                <p class="text-gray-600">My Tasks Created</p> 
             </div>
             <div class="bg-white p-6 rounded-lg shadow-md text-center card">
-                <p class="text-lg font-semibold text-[#e63946]"><?php echo $upcoming_deadlines_count; // CHANGED ?></p>
-                <p class="text-gray-600">Upcoming Deadlines (Next 7 Days)</p> <!-- CHANGED -->
+                <p class="text-lg font-semibold text-[#e63946]"><?php echo $total_upcoming_deadlines_count; ?></p>
+                <p class="text-gray-600">Upcoming Deadlines (Next 7 Days)</p>
             </div>
         </div>
 
@@ -353,20 +392,73 @@ if ($stmt_count) {
             </div>
         </div>
 
-        <!-- Upcoming Deadlines (Placeholder) -->
+              
+<!-- Upcoming Deadlines -->
         <div class="mb-8">
             <h3 class="text-xl font-semibold text-gray-700 mb-4">Upcoming Deadlines</h3>
             <div class="bg-white p-6 rounded-lg shadow-md card">
-                <div class="space-y-4">
-                    <?php if ($upcoming_deadlines_count > 0): ?>
-                        <p class="text-sm text-gray-700">You have <?php echo $upcoming_deadlines_count; ?> task(s) due in the next 7 days.</p>
-                        <!-- Optionally, list a few tasks here -->
+                <div class="space-y-3">
+                    <?php if ($upcoming_deadlines_display_count > 0): ?>
+                        <p class="text-sm text-gray-700 font-medium">
+                            You have <?php echo $upcoming_deadlines_display_count; ?> task(s) due in the next 7 days.
+                            <?php if (count($upcoming_tasks_details) < $upcoming_deadlines_display_count && count($upcoming_tasks_details) > 0): ?>
+                                <span class="text-xs">(Showing the soonest <?php echo count($upcoming_tasks_details); ?>)</span>
+                            <?php endif; ?>
+                        </p>
+                        <?php if (!empty($upcoming_tasks_details)): ?>
+                            <ul class="list-disc list-inside space-y-2 text-sm">
+                                <?php foreach ($upcoming_tasks_details as $task): ?>
+                                    <?php
+                                        $due_date_obj = new DateTime($task['due_date']);
+                                        $formatted_due_date = $due_date_obj->format('M j');
+                                        $days_until_due = (strtotime(date('Y-m-d', strtotime($task['due_date']))) - strtotime(date('Y-m-d'))) / (60 * 60 * 24); // Compare date parts only
+                                        $urgency_class = '';
+                                        if ($days_until_due < 0) { $urgency_class = 'text-red-600 font-semibold'; }
+                                        elseif ($days_until_due < 2) { $urgency_class = 'text-red-500'; }
+                                        elseif ($days_until_due < 4) { $urgency_class = 'text-orange-500'; }
+                                    ?>
+                                    <li class="text-gray-600 hover:text-[#e63946]">
+                                        <a href="kanban.php?board_id=<?php echo htmlspecialchars($task['board_id']); ?>#task-<?php echo htmlspecialchars($task['task_id']); ?>"
+                                           title="Board: <?php echo htmlspecialchars($task['board_name']); ?>. Due: <?php echo $due_date_obj->format('Y-m-d'); ?>">
+                                            <span class="<?php echo $urgency_class; ?>">[<?php echo $formatted_due_date; ?>]</span>
+                                            <?php echo htmlspecialchars($task['task_name']); ?>
+                                            <span class="text-xs text-gray-400 italic">(<?php echo htmlspecialchars($task['board_name']); ?>)</span>
+                                        </a>
+                                    </li>
+                                <?php endforeach; ?>
+                            </ul>
+                        <?php endif; ?>
                     <?php else: ?>
-                        <p class="text-sm text-gray-500">No upcoming deadlines in the next 7 days.</p>
+                        <p class="text-sm text-gray-500">No upcoming deadlines in the next 7 days. Great job!</p>
                     <?php endif; ?>
                 </div>
             </div>
         </div>
+
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                if (window.location.hash) {
+                    const hash = window.location.hash; // e.g., #task-123
+                    if (hash.startsWith('#task-')) {
+                        const taskId = hash.substring(6); // Get "123"
+                        const taskElement = document.getElementById(`task-${taskId}`); // Assumes your task cards have id="task-TASK_ID"
+
+                        if (taskElement) {
+                            // Option 1: Scroll to the task
+                            taskElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+                            // Option 2: Highlight the task (add a temporary class)
+                            taskElement.classList.add('highlighted-task'); // Define .highlighted-task in your CSS
+                            setTimeout(() => {
+                                taskElement.classList.remove('highlighted-task');
+                            }, 3000); // Remove highlight after 3 seconds
+                        }
+                    }
+                }
+            });
+        </script>
+
+    
 
         <!-- Recent Activity (Placeholder) -->
         <div class="mb-8">
