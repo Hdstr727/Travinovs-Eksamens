@@ -10,83 +10,82 @@ if (!isset($_SESSION['user_id'])) {
 // Include database connection
 require_once '../admin/database/connection.php';
 
-// Get user info from database including profile picture
 $user_id = $_SESSION['user_id'];
-$sql = "SELECT username, profile_picture FROM Planotajs_Users WHERE user_id = ?";
-$stmt = $connection->prepare($sql);
-$stmt->bind_param("i", $user_id);
-$stmt->execute();
-$result = $stmt->get_result();
-$user = $result->fetch_assoc();
-$stmt->close();
 
-// Get board count (both owned and shared)
-$board_count_sql = "SELECT
-                    (SELECT COUNT(*) FROM Planotajs_Boards WHERE user_id = ? AND is_deleted = 0) +
-                    (SELECT COUNT(*) FROM Planotajs_Collaborators WHERE user_id = ? AND board_id IN
-                        (SELECT board_id FROM Planotajs_Boards WHERE is_deleted = 0)
-                    ) as count";
+// --- Handle "Show Archived" toggle ---
+$show_archived = isset($_GET['show_archived']) && $_GET['show_archived'] == '1';
+
+// --- SQL Condition for archived boards ---
+$archived_filter_boards_table = ""; // For queries directly on Planotajs_Boards
+$archived_filter_aliased_b_table = ""; // For queries where Planotajs_Boards is aliased as 'b'
+
+if (!$show_archived) {
+    $archived_filter_boards_table = " AND is_archived = 0";
+    $archived_filter_aliased_b_table = " AND b.is_archived = 0";
+}
+
+// Get user info
+$sql_user = "SELECT username, profile_picture FROM Planotajs_Users WHERE user_id = ?";
+$stmt_user = $connection->prepare($sql_user);
+$stmt_user->bind_param("i", $user_id);
+$stmt_user->execute();
+$result_user = $stmt_user->get_result();
+$user = $result_user->fetch_assoc();
+$stmt_user->close();
+
+// Get board count (respecting archive filter)
+$board_count_sql = "SELECT COUNT(DISTINCT b.board_id) as count
+                    FROM Planotajs_Boards b
+                    LEFT JOIN Planotajs_Collaborators c ON b.board_id = c.board_id AND c.user_id = ?
+                    WHERE b.is_deleted = 0 " . $archived_filter_aliased_b_table . "
+                    AND (b.user_id = ? OR c.user_id = ?)";
 $board_stmt = $connection->prepare($board_count_sql);
-$board_stmt->bind_param("ii", $user_id, $user_id);
+$board_stmt->bind_param("iii", $user_id, $user_id, $user_id);
 $board_stmt->execute();
 $board_count_result = $board_stmt->get_result()->fetch_assoc();
 $board_count = $board_count_result ? $board_count_result['count'] : 0;
 $board_stmt->close();
 
-// --- Get count of tasks created by the logged-in user ---
-// This assumes you have a way to identify the creator of a task.
-// If Planotajs_Tasks doesn't have a 'created_by_user_id' column, this will be tricky.
-// For now, let's assume we count tasks on boards they own or are a collaborator on.
-// A more accurate "tasks created by me" would require a 'creator_id' in Planotajs_Tasks.
-// This query counts all non-deleted tasks on boards the user has access to.
-// If you want tasks *literally created by* this user, you'll need to add a `created_by_user_id`
-// to your `Planotajs_Tasks` table and update your `save_task.php` to populate it.
-
-// For "My Tasks Created" - let's count tasks on boards they own or are a collaborator on,
-// and for simplicity, assume any task on these boards is "their" task in a broad sense.
-// A more precise "created by me" would need a `creator_user_id` in the tasks table.
-// This query counts tasks on boards the user owns.
+// Get count of tasks created by the logged-in user (on non-deleted, and conditionally non-archived boards they own)
 $my_tasks_created_sql = "SELECT COUNT(t.task_id) as count
                          FROM Planotajs_Tasks t
                          JOIN Planotajs_Boards b ON t.board_id = b.board_id
-                         WHERE b.user_id = ? AND t.is_deleted = 0";
-// If you want to include tasks on boards they collaborate on:
-/*
-$my_tasks_created_sql = "SELECT COUNT(DISTINCT t.task_id) as count
-                         FROM Planotajs_Tasks t
-                         WHERE t.is_deleted = 0 AND t.board_id IN (
-                             SELECT board_id FROM Planotajs_Boards WHERE user_id = ? AND is_deleted = 0
-                             UNION
-                             SELECT board_id FROM Planotajs_Collaborators WHERE user_id = ?
-                         )";
-*/
+                         WHERE b.user_id = ? AND t.is_deleted = 0 AND b.is_deleted = 0" . $archived_filter_aliased_b_table;
 $my_tasks_stmt = $connection->prepare($my_tasks_created_sql);
-// If using the more complex query with UNION, bind twice: $my_tasks_stmt->bind_param("ii", $user_id, $user_id);
 $my_tasks_stmt->bind_param("i", $user_id);
 $my_tasks_stmt->execute();
 $my_tasks_result = $my_tasks_stmt->get_result()->fetch_assoc();
 $my_tasks_created_count = $my_tasks_result ? $my_tasks_result['count'] : 0;
 $my_tasks_stmt->close();
 
-
-/// --- Get count AND DETAILS of upcoming deadlines (due in the next 7 days) for this user's tasks ---
+// --- Upcoming Deadlines (respecting archive filter) ---
 $today = date('Y-m-d');
 $seven_days_later = date('Y-m-d', strtotime('+7 days'));
 
-// --- Query 1: Get the TOTAL count of upcoming deadlines ---
+// Subquery for boards user has access to (respecting archive filter)
+$board_access_subquery_archived_filter_direct = "";
+$board_access_subquery_archived_filter_collab_alias = "";
+if (!$show_archived) {
+    $board_access_subquery_archived_filter_direct = " AND is_archived = 0";
+    $board_access_subquery_archived_filter_collab_alias = " AND b_collab.is_archived = 0";
+}
+
+$board_access_subquery = "
+    SELECT board_id FROM Planotajs_Boards WHERE user_id = ? AND is_deleted = 0 {$board_access_subquery_archived_filter_direct}
+    UNION
+    SELECT c.board_id FROM Planotajs_Collaborators c JOIN Planotajs_Boards b_collab ON c.board_id = b_collab.board_id WHERE c.user_id = ? AND b_collab.is_deleted = 0 {$board_access_subquery_archived_filter_collab_alias}
+";
+
 $total_upcoming_deadlines_count = 0;
 $count_deadlines_sql = "SELECT COUNT(DISTINCT t.task_id) as count
                         FROM Planotajs_Tasks t
-                        WHERE t.is_deleted = 0 AND t.is_completed = 0
+                        JOIN Planotajs_Boards b_main ON t.board_id = b_main.board_id
+                        WHERE t.is_deleted = 0 AND t.is_completed = 0 AND b_main.is_deleted = 0 " . ($show_archived ? "" : "AND b_main.is_archived = 0") . "
                           AND DATE(t.due_date) BETWEEN ? AND ?
-                          AND t.board_id IN (
-                              SELECT board_id FROM Planotajs_Boards WHERE user_id = ? AND is_deleted = 0
-                              UNION
-                              SELECT board_id FROM Planotajs_Collaborators WHERE user_id = ?
-                          )";
+                          AND t.board_id IN ({$board_access_subquery})";
 $count_deadlines_stmt = $connection->prepare($count_deadlines_sql);
 if ($count_deadlines_stmt) {
-    $count_deadlines_stmt->bind_param("ssii", $today, $seven_days_later, $user_id, $user_id);
+    $count_deadlines_stmt->bind_param("ssii", $today, $seven_days_later, $user_id, $user_id); // Params for subquery
     $count_deadlines_stmt->execute();
     $count_deadlines_result = $count_deadlines_stmt->get_result()->fetch_assoc();
     if ($count_deadlines_result) {
@@ -97,24 +96,18 @@ if ($count_deadlines_stmt) {
     error_log("Failed to prepare statement for total upcoming deadlines count: " . $connection->error);
 }
 
-
-// --- Query 2: Get DETAILS for a limited list of upcoming tasks ---
-$upcoming_tasks_details = []; // Array to store task details
-$details_deadlines_sql = "SELECT t.task_id, t.task_name, t.due_date, t.board_id, b.board_name
+$upcoming_tasks_details = [];
+$details_deadlines_sql = "SELECT t.task_id, t.task_name, t.due_date, t.board_id, b.board_name, b.is_archived as board_is_archived
                           FROM Planotajs_Tasks t
                           JOIN Planotajs_Boards b ON t.board_id = b.board_id
-                          WHERE t.is_deleted = 0 AND t.is_completed = 0
+                          WHERE t.is_deleted = 0 AND t.is_completed = 0 AND b.is_deleted = 0 " . ($show_archived ? "" : "AND b.is_archived = 0") . "
                             AND DATE(t.due_date) BETWEEN ? AND ?
-                            AND t.board_id IN (
-                                SELECT board_id FROM Planotajs_Boards WHERE user_id = ? AND is_deleted = 0
-                                UNION
-                                SELECT board_id FROM Planotajs_Collaborators WHERE user_id = ?
-                            )
+                            AND t.board_id IN ({$board_access_subquery})
                           ORDER BY t.due_date ASC, CASE t.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END ASC
-                          LIMIT 5"; // Limit how many tasks you list on the dashboard, e.g., 5 or 10
+                          LIMIT 5";
 $details_deadlines_stmt = $connection->prepare($details_deadlines_sql);
 if ($details_deadlines_stmt) {
-    $details_deadlines_stmt->bind_param("ssii", $today, $seven_days_later, $user_id, $user_id);
+    $details_deadlines_stmt->bind_param("ssii", $today, $seven_days_later, $user_id, $user_id); // Params for subquery
     $details_deadlines_stmt->execute();
     $details_deadlines_result = $details_deadlines_stmt->get_result();
     while ($task = $details_deadlines_result->fetch_assoc()) {
@@ -124,13 +117,11 @@ if ($details_deadlines_stmt) {
 } else {
     error_log("Failed to prepare statement for upcoming deadline details: " . $connection->error);
 }
-
-// The variable for the displayed count should be the total count
 $upcoming_deadlines_display_count = $total_upcoming_deadlines_count;
 
 
-
 $username = $user['username'] ?? ($_SESSION['username'] ?? 'User');
+// ... (rest of your avatar and greeting logic remains the same) ...
 $db_profile_picture_path = $user['profile_picture'] ?? null;
 $full_server_path_to_picture = null;
 if ($db_profile_picture_path) {
@@ -143,71 +134,67 @@ if (!empty($db_profile_picture_path) && $full_server_path_to_picture && file_exi
     $user_avatar = "https://ui-avatars.com/api/?name=" . urlencode($username) . "&background=e63946&color=fff";
 }
 
-// Dynamic greeting based on time of day
 $hour = date('H');
-if ($hour < 12) {
-    $greeting = "Good Morning";
-} elseif ($hour < 18) {
-    $greeting = "Good Afternoon";
-} else {
-    $greeting = "Good Evening";
-}
+if ($hour < 12) { $greeting = "Good Morning"; }
+elseif ($hour < 18) { $greeting = "Good Afternoon"; }
+else { $greeting = "Good Evening"; }
+
 
 $boards = [];
-// Fetch user's own boards from database
-$own_boards_sql = "SELECT board_id, board_name, board_type, updated_at, 'owner' as access_type
+// Fetch user's own boards (respecting archive filter)
+$own_boards_sql = "SELECT board_id, board_name, board_type, updated_at, is_archived, 'owner' as access_type
                   FROM Planotajs_Boards
-                  WHERE user_id = ? AND is_deleted = 0";
+                  WHERE user_id = ? AND is_deleted = 0" . $archived_filter_boards_table;
 $own_boards_stmt = $connection->prepare($own_boards_sql);
 $own_boards_stmt->bind_param("i", $user_id);
 $own_boards_stmt->execute();
 $own_boards_result = $own_boards_stmt->get_result();
-
-// Store raw updated_at for sorting, then format
 while ($board = $own_boards_result->fetch_assoc()) {
-    $page = ($board['board_type'] === 'kanban') ? 'kanban.php' : 'kanban.php';
+    $page = ($board['board_type'] === 'kanban') ? 'kanban.php' : 'kanban.php'; // Or other types
     $boards[] = [
         'id' => $board['board_id'],
         'name' => $board['board_name'],
         'page' => $page,
-        'raw_updated_at' => $board['updated_at'], // Store raw timestamp
-        'access_type' => $board['access_type']
+        'raw_updated_at' => $board['updated_at'],
+        'access_type' => $board['access_type'],
+        'is_archived' => $board['is_archived']
     ];
 }
 $own_boards_stmt->close();
 
-// Fetch shared boards
-$shared_boards_sql = "SELECT b.board_id, b.board_name, b.board_type, b.updated_at,
+// Fetch shared boards (respecting archive filter)
+$shared_boards_sql = "SELECT b.board_id, b.board_name, b.board_type, b.updated_at, b.is_archived,
                      c.permission_level as access_type, u.username as owner_name
                      FROM Planotajs_Collaborators c
                      JOIN Planotajs_Boards b ON c.board_id = b.board_id
                      JOIN Planotajs_Users u ON b.user_id = u.user_id
-                     WHERE c.user_id = ? AND b.is_deleted = 0";
+                     WHERE c.user_id = ? AND b.is_deleted = 0" . $archived_filter_aliased_b_table;
 $shared_boards_stmt = $connection->prepare($shared_boards_sql);
 $shared_boards_stmt->bind_param("i", $user_id);
 $shared_boards_stmt->execute();
 $shared_boards_result = $shared_boards_stmt->get_result();
-
 while ($board = $shared_boards_result->fetch_assoc()) {
     $page = ($board['board_type'] === 'kanban') ? 'kanban.php' : 'kanban.php';
     $boards[] = [
         'id' => $board['board_id'],
         'name' => $board['board_name'],
         'page' => $page,
-        'raw_updated_at' => $board['updated_at'], // Store raw timestamp
+        'raw_updated_at' => $board['updated_at'],
         'access_type' => $board['access_type'],
-        'owner_name' => $board['owner_name']
+        'owner_name' => $board['owner_name'],
+        'is_archived' => $board['is_archived']
     ];
 }
 $shared_boards_stmt->close();
 
-// Sort boards by raw_updated_at in descending order
+// Sort boards by raw_updated_at
 usort($boards, function($a, $b) {
     return strtotime($b['raw_updated_at']) - strtotime($a['raw_updated_at']);
 });
 
-// Now format the 'updated' string after sorting
+// Format 'updated' string
 foreach ($boards as $key => $board) {
+    // ... (your existing updated time formatting logic) ...
     $updated_time = strtotime($board['raw_updated_at']);
     $time_diff = time() - $updated_time;
     $days_ago = floor($time_diff / (60 * 60 * 24));
@@ -218,18 +205,18 @@ foreach ($boards as $key => $board) {
     $boards[$key]['updated'] = $last_updated;
 }
 
-
 // Get unread notifications count
+// ... (your existing notifications count logic) ...
 $unread_notifications_count = 0;
-$stmt_count = $connection->prepare("SELECT COUNT(*) as count FROM Planotajs_Notifications WHERE user_id = ? AND is_read = 0");
-if ($stmt_count) {
-    $stmt_count->bind_param("i", $user_id);
-    $stmt_count->execute();
-    $count_result = $stmt_count->get_result()->fetch_assoc();
-    if ($count_result) {
-        $unread_notifications_count = $count_result['count'];
+$stmt_count_notif = $connection->prepare("SELECT COUNT(*) as count FROM Planotajs_Notifications WHERE user_id = ? AND is_read = 0");
+if ($stmt_count_notif) {
+    $stmt_count_notif->bind_param("i", $user_id);
+    $stmt_count_notif->execute();
+    $count_result_notif = $stmt_count_notif->get_result()->fetch_assoc();
+    if ($count_result_notif) {
+        $unread_notifications_count = $count_result_notif['count'];
     }
-    $stmt_count->close();
+    $stmt_count_notif->close();
 } else {
     error_log("Failed to prepare statement for unread notifications count: " . $connection->error);
 }
@@ -244,14 +231,27 @@ if ($stmt_count) {
     <link rel="stylesheet" href="css/dark-theme.css">
     <style>
         .hover-scale { transition: transform 0.2s ease; }
-        .hover-scale:hover { transform: scale(1.05); }
+        .hover-scale:hover { transform: scale(1.03); } /* Slightly less aggressive scale */
         .badge { font-size: 0.65rem; padding: 0.15rem 0.5rem; border-radius: 9999px; }
         .notification-item > a, .notification-item > div[data-id] { cursor: pointer; }
+        .archived-board {
+            opacity: 0.7;
+            border-left: 4px solid #a0aec0; /* gray-500 */
+        }
+        .archived-board:hover {
+            opacity: 0.9;
+        }
+        .highlighted-task {
+            background-color: #fefcbf; /* yellow-100 */
+            border: 1px solid #fbd38d; /* yellow-300 */
+            border-radius: 0.25rem;
+        }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
     <div class="container mx-auto p-6">
         <!-- Header -->
+        <!-- ... (Your existing header HTML) ... -->
         <div class="flex justify-between items-center mb-8">
             <h1 class="text-3xl font-bold text-[#e63946]">Planner+</h1>
             <div class="flex items-center space-x-4">
@@ -299,68 +299,90 @@ if ($stmt_count) {
             </div>
         </div>
 
+
         <!-- Welcome Message -->
-        <div class="mb-8">
+        <!-- ... (Your existing welcome message HTML) ... -->
+         <div class="mb-8">
             <h2 class="text-2xl font-semibold text-gray-700"><?php echo htmlspecialchars($greeting); ?>, <?php echo htmlspecialchars($username); ?>!</h2>
             <p class="text-gray-600">Here's what's happening with your boards today.</p>
         </div>
 
+
         <!-- Quick Stats -->
+        <!-- ... (Your existing quick stats HTML - these now respect the archive filter) ... -->
         <div class="mb-8 grid md:grid-cols-3 gap-6">
             <div class="bg-white p-6 rounded-lg shadow-md text-center card">
                 <p class="text-lg font-semibold text-[#e63946]"><?php echo $board_count; ?></p>
-                <p class="text-gray-600">Total Boards</p>
+                <p class="text-gray-600">Total Boards <?php echo $show_archived ? "(incl. archived)" : ""; ?></p>
             </div>
             <div class="bg-white p-6 rounded-lg shadow-md text-center card">
                 <p class="text-lg font-semibold text-[#e63946]"><?php echo $my_tasks_created_count; ?></p>
-                <p class="text-gray-600">My Tasks Created</p> 
+                <p class="text-gray-600">My Tasks Created <?php echo $show_archived ? "(on all boards)" : "(on active boards)"; ?></p> 
             </div>
             <div class="bg-white p-6 rounded-lg shadow-md text-center card">
                 <p class="text-lg font-semibold text-[#e63946]"><?php echo $total_upcoming_deadlines_count; ?></p>
-                <p class="text-gray-600">Upcoming Deadlines (Next 7 Days)</p>
+                <p class="text-gray-600">Upcoming Deadlines <?php echo $show_archived ? "(all boards)" : "(active boards)"; ?></p>
             </div>
         </div>
 
+
         <!-- Search Bar -->
+        <!-- ... (Your existing search bar HTML) ... -->
         <div class="mb-8">
             <input type="text" placeholder="Search boards, tasks, or templates..." class="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#e63946]">
         </div>
 
+
         <!-- Your Boards Section -->
         <div class="mb-8">
-            <h3 class="text-xl font-semibold text-gray-700 mb-4">Your Boards</h3>
-            <button id="add-board-btn" class="bg-[#e63946] text-white py-2 px-4 rounded-lg font-semibold hover:bg-red-700 transition mb-4">
-                Add Board
-            </button>
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-semibold text-gray-700">Your Boards</h3>
+                <div class="flex items-center space-x-4">
+                    <button id="add-board-btn" class="bg-[#e63946] text-white py-2 px-4 rounded-lg font-semibold hover:bg-red-700 transition">
+                        Add Board
+                    </button>
+                    <div>
+                        <input type="checkbox" id="show-archived-toggle" class="form-checkbox h-5 w-5 text-[#e63946] rounded focus:ring-[#e63946]" <?php echo $show_archived ? 'checked' : ''; ?>>
+                        <label for="show-archived-toggle" class="ml-2 text-sm text-gray-600">Show Archived</label>
+                    </div>
+                </div>
+            </div>
+            
             <?php if (count($boards) > 0): ?>
                 <div class='grid md:grid-cols-3 gap-6'>
                 <?php foreach ($boards as $board):
-                    $badgeColor = "bg-blue-100 text-blue-800"; // Default for shared
+                    $badgeColor = "bg-blue-100 text-blue-800";
                     $badgeText = "";
+                    $is_archived_board = $board['is_archived'] ?? 0;
 
                     if ($board['access_type'] === 'owner') {
                         $badgeColor = "bg-green-100 text-green-800";
                         $badgeText = "Owner";
-                    } elseif (isset($board['owner_name'])) { // It's a shared board
+                    } elseif (isset($board['owner_name'])) {
                         $badgeText = "Shared by " . htmlspecialchars($board['owner_name']);
-                        if ($board['access_type'] === 'admin') { // For collaborators
-                             $badgeColor = "bg-purple-100 text-purple-800"; // Example for admin collaborator
+                        if ($board['access_type'] === 'admin') {
+                             $badgeColor = "bg-purple-100 text-purple-800";
                              $badgeText = "Admin • " . $badgeText;
-                        } elseif ($board['access_type'] === 'edit') { // 'edit' for collaborators
+                        } elseif ($board['access_type'] === 'edit') {
                             $badgeColor = "bg-yellow-100 text-yellow-800";
                             $badgeText = "Editor • " . $badgeText;
-                        } elseif ($board['access_type'] === 'view') { // 'view' for collaborators
-                            $badgeColor = "bg-gray-100 text-gray-800";
+                        } elseif ($board['access_type'] === 'view') {
+                            $badgeColor = "bg-gray-200 text-gray-700"; // Darker gray for better contrast
                             $badgeText = "Viewer • " . $badgeText;
                         }
                     } else {
-                        // Fallback for shared if owner_name somehow not set, though query should provide it
                         $badgeText = "Shared";
                     }
                 ?>
-                    <a href='<?php echo htmlspecialchars($board['page']); ?>?board_id=<?php echo $board['id']; ?>' class='bg-white p-6 rounded-lg shadow-md hover-scale card'>
+                    <a href='<?php echo htmlspecialchars($board['page']); ?>?board_id=<?php echo $board['id']; ?>' 
+                       class='bg-white p-6 rounded-lg shadow-md hover-scale card <?php echo $is_archived_board ? "archived-board" : ""; ?>'>
                         <div class='flex justify-between items-start mb-2'>
-                            <h4 class='text-lg font-semibold text-[#e63946]'><?php echo htmlspecialchars($board['name']); ?></h4>
+                            <h4 class='text-lg font-semibold text-[#e63946]'>
+                                <?php echo htmlspecialchars($board['name']); ?>
+                                <?php if ($is_archived_board): ?>
+                                    <span class="text-xs text-gray-500 font-normal">(Archived)</span>
+                                <?php endif; ?>
+                            </h4>
                             <span class='badge <?php echo $badgeColor; ?>'><?php echo $badgeText; ?></span>
                         </div>
                         <p class='text-gray-600'><?php echo htmlspecialchars($board['updated']); ?></p>
@@ -369,11 +391,18 @@ if ($stmt_count) {
                 </div>
             <?php else: ?>
                 <div class='col-span-3 text-center p-8 bg-white rounded-lg shadow-md card'>
-                    <p class='text-gray-600'>You haven't created any boards yet. Click 'Add Board' to get started!</p>
+                    <p class='text-gray-600'>
+                        <?php if ($show_archived): ?>
+                            No boards found (including archived).
+                        <?php else: ?>
+                            You haven't created any active boards yet. Click 'Add Board' or check 'Show Archived'.
+                        <?php endif; ?>
+                    </p>
                 </div>
             <?php endif; ?>
 
             <!-- Modal for Add Board -->
+            <!-- ... (Your existing modal HTML) ... -->
             <div id="add-board-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50">
                 <div class="bg-white p-6 rounded-lg shadow-lg w-96">
                     <h2 class="text-xl font-semibold mb-4">Create New Board</h2>
@@ -393,14 +422,15 @@ if ($stmt_count) {
         </div>
 
               
-<!-- Upcoming Deadlines -->
+        <!-- Upcoming Deadlines -->
         <div class="mb-8">
             <h3 class="text-xl font-semibold text-gray-700 mb-4">Upcoming Deadlines</h3>
             <div class="bg-white p-6 rounded-lg shadow-md card">
                 <div class="space-y-3">
                     <?php if ($upcoming_deadlines_display_count > 0): ?>
                         <p class="text-sm text-gray-700 font-medium">
-                            You have <?php echo $upcoming_deadlines_display_count; ?> task(s) due in the next 7 days.
+                            You have <?php echo $upcoming_deadlines_display_count; ?> task(s) due in the next 7 days
+                            <?php if (!$show_archived) echo " on active boards"; ?>.
                             <?php if (count($upcoming_tasks_details) < $upcoming_deadlines_display_count && count($upcoming_tasks_details) > 0): ?>
                                 <span class="text-xs">(Showing the soonest <?php echo count($upcoming_tasks_details); ?>)</span>
                             <?php endif; ?>
@@ -411,57 +441,37 @@ if ($stmt_count) {
                                     <?php
                                         $due_date_obj = new DateTime($task['due_date']);
                                         $formatted_due_date = $due_date_obj->format('M j');
-                                        $days_until_due = (strtotime(date('Y-m-d', strtotime($task['due_date']))) - strtotime(date('Y-m-d'))) / (60 * 60 * 24); // Compare date parts only
+                                        $days_until_due = (strtotime(date('Y-m-d', strtotime($task['due_date']))) - strtotime(date('Y-m-d'))) / (60 * 60 * 24);
                                         $urgency_class = '';
                                         if ($days_until_due < 0) { $urgency_class = 'text-red-600 font-semibold'; }
                                         elseif ($days_until_due < 2) { $urgency_class = 'text-red-500'; }
                                         elseif ($days_until_due < 4) { $urgency_class = 'text-orange-500'; }
+                                        $task_board_is_archived = $task['board_is_archived'] ?? 0;
                                     ?>
-                                    <li class="text-gray-600 hover:text-[#e63946]">
+                                    <li class="text-gray-600 hover:text-[#e63946] <?php echo $task_board_is_archived ? 'opacity-75' : ''; ?>">
                                         <a href="kanban.php?board_id=<?php echo htmlspecialchars($task['board_id']); ?>#task-<?php echo htmlspecialchars($task['task_id']); ?>"
                                            title="Board: <?php echo htmlspecialchars($task['board_name']); ?>. Due: <?php echo $due_date_obj->format('Y-m-d'); ?>">
                                             <span class="<?php echo $urgency_class; ?>">[<?php echo $formatted_due_date; ?>]</span>
                                             <?php echo htmlspecialchars($task['task_name']); ?>
                                             <span class="text-xs text-gray-400 italic">(<?php echo htmlspecialchars($task['board_name']); ?>)</span>
+                                            <?php if ($task_board_is_archived): ?>
+                                                <span class="text-xs text-gray-400 italic">(Archived Board)</span>
+                                            <?php endif; ?>
                                         </a>
                                     </li>
                                 <?php endforeach; ?>
                             </ul>
                         <?php endif; ?>
                     <?php else: ?>
-                        <p class="text-sm text-gray-500">No upcoming deadlines in the next 7 days. Great job!</p>
+                        <p class="text-sm text-gray-500">No upcoming deadlines in the next 7 days<?php if (!$show_archived) echo " on active boards"; ?>. Great job!</p>
                     <?php endif; ?>
                 </div>
             </div>
         </div>
 
-        <script>
-            document.addEventListener('DOMContentLoaded', function() {
-                if (window.location.hash) {
-                    const hash = window.location.hash; // e.g., #task-123
-                    if (hash.startsWith('#task-')) {
-                        const taskId = hash.substring(6); // Get "123"
-                        const taskElement = document.getElementById(`task-${taskId}`); // Assumes your task cards have id="task-TASK_ID"
-
-                        if (taskElement) {
-                            // Option 1: Scroll to the task
-                            taskElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-                            // Option 2: Highlight the task (add a temporary class)
-                            taskElement.classList.add('highlighted-task'); // Define .highlighted-task in your CSS
-                            setTimeout(() => {
-                                taskElement.classList.remove('highlighted-task');
-                            }, 3000); // Remove highlight after 3 seconds
-                        }
-                    }
-                }
-            });
-        </script>
-
-    
-
         <!-- Recent Activity (Placeholder) -->
-        <div class="mb-8">
+        <!-- ... (Your existing recent activity HTML) ... -->
+         <div class="mb-8">
             <h3 class="text-xl font-semibold text-gray-700 mb-4">Recent Activity</h3>
             <div class="bg-white p-6 rounded-lg shadow-md card">
                 <div class="space-y-4">
@@ -470,7 +480,9 @@ if ($stmt_count) {
             </div>
         </div>
 
+
         <!-- Footer -->
+        <!-- ... (Your existing footer HTML) ... -->
         <div class="text-center text-gray-600 mt-8">
             <p>© <?php echo date("Y"); ?> Planotajs. All rights reserved.</p>
             <div class="mt-2">
@@ -482,8 +494,24 @@ if ($stmt_count) {
     </div>
 
     <script>
-        // Dark Mode Toggle Script
-        document.addEventListener('DOMContentLoaded', function () {
+        document.addEventListener('DOMContentLoaded', function() {
+            // --- Highlight task from URL hash ---
+            if (window.location.hash && window.location.hash.startsWith('#task-')) {
+                const taskId = window.location.hash.substring(6);
+                // Attempt to find the task link in upcoming deadlines or other potential task lists
+                const taskLink = document.querySelector(`a[href*="#task-${taskId}"]`);
+                if (taskLink) {
+                    const taskElement = taskLink.closest('li') || taskLink; // Get parent li or the link itself
+                    taskElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    taskElement.classList.add('highlighted-task');
+                    setTimeout(() => {
+                        taskElement.classList.remove('highlighted-task');
+                    }, 3000);
+                }
+            }
+
+            // --- Dark Mode Toggle Script ---
+            // ... (Your existing dark mode script) ...
             const darkModeToggle = document.getElementById('dark-mode-toggle');
             const htmlElement = document.documentElement;
             function setDarkMode(isDark) {
@@ -506,27 +534,30 @@ if ($stmt_count) {
                     setDarkMode(!isCurrentlyDark);
                     localStorage.setItem('darkMode', !isCurrentlyDark);
                 });
-            }});
+            }
 
-        // Profile Dropdown Script
-        const profileToggle = document.getElementById('profile-toggle');
-        const profileDropdown = document.getElementById('profile-dropdown');
-        if (profileToggle && profileDropdown) {
-            profileToggle.addEventListener('click', (e) => {
-                e.stopPropagation();
-                profileDropdown.classList.toggle('hidden');
-                if (notificationsDropdown) notificationsDropdown.classList.add('hidden');
-            });
-        }
+            // --- Profile Dropdown Script ---
+            // ... (Your existing profile dropdown script) ...
+            const profileToggle = document.getElementById('profile-toggle');
+            const profileDropdown = document.getElementById('profile-dropdown');
+            if (profileToggle && profileDropdown) {
+                profileToggle.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    profileDropdown.classList.toggle('hidden');
+                    if (notificationsDropdown) notificationsDropdown.classList.add('hidden');
+                });
+            }
 
-        // Notifications Dropdown Script
-        const notificationsToggle = document.getElementById('notifications-toggle');
-        const notificationsDropdown = document.getElementById('notifications-dropdown');
-        const notificationsList = document.getElementById('notifications-list');
-        const markAllReadBtn = document.getElementById('mark-all-read');
 
-        function fetchNotifications() {
-            fetch('ajax_handlers/get_notifications.php')
+            // --- Notifications Dropdown Script ---
+            // ... (Your existing notifications script) ...
+            const notificationsToggle = document.getElementById('notifications-toggle');
+            const notificationsDropdown = document.getElementById('notifications-dropdown');
+            const notificationsList = document.getElementById('notifications-list');
+            const markAllReadBtn = document.getElementById('mark-all-read');
+
+            function fetchNotifications() { /* ... same ... */ 
+                fetch('ajax_handlers/get_notifications.php')
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
@@ -539,136 +570,156 @@ if ($stmt_count) {
                 .catch(error => {
                     notificationsList.innerHTML = '<p class="text-sm text-red-500">Error fetching notifications.</p>';
                 });
-        }
-
-        function renderNotifications(notifications) {
-            if (!notifications || notifications.length === 0) {
-                notificationsList.innerHTML = '<p class="text-sm text-gray-600">No new notifications.</p>';
-                return;
             }
-            let html = '';
-            notifications.forEach(notif => {
-                const isUnreadClass = notif.is_read == 0 ? 'font-semibold bg-sky-50' : 'text-gray-700';
-                const messageText = String(notif.message || '').replace(/</g, "<").replace(/>/g, ">");
-                const createdAtText = String(notif.formatted_created_at || '').replace(/</g, "<").replace(/>/g, ">");
-                const linkHtml = notif.link ?
-                    `<a href="${encodeURI(notif.link)}" class="block hover:bg-gray-100 p-2 rounded ${isUnreadClass}" data-id="${notif.notification_id}">` :
-                    `<div class="p-2 ${isUnreadClass}" data-id="${notif.notification_id}">`;
-                const linkEndHtml = notif.link ? `</a>` : `</div>`;
-                html += `<div class="notification-item border-b border-gray-200 last:border-b-0">${linkHtml}<p class="text-sm ">${messageText}</p><p class="text-xs text-gray-500 mt-1">${createdAtText}</p>${linkEndHtml}</div>`;
-            });
-            notificationsList.innerHTML = html;
-            document.querySelectorAll('.notification-item a, .notification-item div[data-id]').forEach(item => {
-                item.addEventListener('click', function(e) {
-                    const notificationId = this.dataset.id;
-                    const isLink = this.tagName === 'A';
-                    const isCurrentlyUnread = this.classList.contains('font-semibold');
-                    if (isCurrentlyUnread) {
-                        markNotificationAsRead(notificationId, !isLink);
-                    }
-                    if (!isLink) e.stopPropagation();
+            function renderNotifications(notifications) { /* ... same ... */ 
+                if (!notifications || notifications.length === 0) {
+                    notificationsList.innerHTML = '<p class="text-sm text-gray-600">No new notifications.</p>';
+                    return;
+                }
+                let html = '';
+                notifications.forEach(notif => {
+                    const isUnreadClass = notif.is_read == 0 ? 'font-semibold bg-sky-50' : 'text-gray-700';
+                    const messageText = String(notif.message || '').replace(/</g, "<").replace(/>/g, ">"); // Sanitize
+                    const createdAtText = String(notif.formatted_created_at || '').replace(/</g, "<").replace(/>/g, ">"); // Sanitize
+                    const linkHtml = notif.link ?
+                        `<a href="${encodeURI(notif.link)}" class="block hover:bg-gray-100 p-2 rounded ${isUnreadClass}" data-id="${notif.notification_id}">` :
+                        `<div class="p-2 ${isUnreadClass}" data-id="${notif.notification_id}">`;
+                    const linkEndHtml = notif.link ? `</a>` : `</div>`;
+                    html += `<div class="notification-item border-b border-gray-200 last:border-b-0">${linkHtml}<p class="text-sm ">${messageText}</p><p class="text-xs text-gray-500 mt-1">${createdAtText}</p>${linkEndHtml}</div>`;
                 });
-            });
-        }
-
-        function updateUnreadCount(count) {
-            let badge = document.getElementById('notification-count-badge');
-            if (badge) {
-                if (count > 0) {
-                    badge.textContent = count;
-                    badge.style.display = 'flex';
-                } else {
-                    badge.textContent = '';
-                    badge.style.display = 'none';
-                }
+                notificationsList.innerHTML = html;
+                document.querySelectorAll('.notification-item a, .notification-item div[data-id]').forEach(item => {
+                    item.addEventListener('click', function(e) {
+                        const notificationId = this.dataset.id;
+                        const isLink = this.tagName === 'A';
+                        const isCurrentlyUnread = this.classList.contains('font-semibold');
+                        if (isCurrentlyUnread) {
+                            markNotificationAsRead(notificationId, !isLink);
+                        }
+                        if (!isLink) e.stopPropagation(); // Prevent dropdown close if not a link
+                    });
+                });
             }
-        }
-
-        function markNotificationAsRead(notificationId, refreshList = true) {
-            const formData = new FormData();
-            formData.append('notification_id', notificationId);
-            fetch('ajax_handlers/mark_notification_read.php', { method: 'POST', body: formData })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    if (refreshList) {
-                        fetchNotifications();
+            function updateUnreadCount(count) { /* ... same ... */ 
+                let badge = document.getElementById('notification-count-badge');
+                if (badge) {
+                    if (count > 0) {
+                        badge.textContent = count;
+                        badge.style.display = 'flex';
                     } else {
-                        const itemClicked = notificationsList.querySelector(`.notification-item [data-id="${notificationId}"]`);
-                        if (itemClicked) {
-                            itemClicked.classList.remove('font-semibold', 'bg-sky-50');
-                            itemClicked.classList.add('text-gray-700');
-                        }
-                        let currentBadge = document.getElementById('notification-count-badge');
-                        if (currentBadge) {
-                           let currentCount = parseInt(currentBadge.textContent || "0");
-                           if (currentCount > 0) updateUnreadCount(currentCount - 1);
-                        }
+                        badge.textContent = '';
+                        badge.style.display = 'none';
                     }
                 }
-            });
-        }
-        if (markAllReadBtn) {
-            markAllReadBtn.addEventListener('click', function(e) {
-                e.preventDefault(); e.stopPropagation();
-                const formData = new FormData();
-                formData.append('mark_all', 'true');
-                fetch('ajax_handlers/mark_notification_read.php', { method: 'POST', body: formData })
-                .then(response => response.json()).then(data => { if (data.success) fetchNotifications(); });
-            });
-        }
-        if (notificationsToggle && notificationsDropdown) {
-            notificationsToggle.addEventListener('click', (e) => {
-                e.stopPropagation();
-                const isHidden = notificationsDropdown.classList.toggle('hidden');
-                if (profileDropdown) profileDropdown.classList.add('hidden');
-                if (!isHidden) fetchNotifications();
-            });
-        }
-
-        document.addEventListener('click', (e) => {
-            if (notificationsDropdown && !notificationsToggle.contains(e.target) && !notificationsDropdown.contains(e.target)) {
-                notificationsDropdown.classList.add('hidden');
             }
-            if (profileDropdown && !profileToggle.contains(e.target) && !profileDropdown.contains(e.target)) {
-                profileDropdown.classList.add('hidden');
+            function markNotificationAsRead(notificationId, refreshList = true) { /* ... same ... */ 
+                const formData = new FormData();
+                formData.append('notification_id', notificationId);
+                fetch('ajax_handlers/mark_notification_read.php', { method: 'POST', body: formData })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        if (refreshList) {
+                            fetchNotifications();
+                        } else {
+                            // Update UI for the single item without full refresh
+                            const itemClicked = notificationsList.querySelector(`.notification-item [data-id="${notificationId}"]`);
+                            if (itemClicked) {
+                                itemClicked.classList.remove('font-semibold', 'bg-sky-50');
+                                itemClicked.classList.add('text-gray-700');
+                            }
+                            let currentBadge = document.getElementById('notification-count-badge');
+                            if (currentBadge) {
+                               let currentCount = parseInt(currentBadge.textContent || "0");
+                               if (currentCount > 0) updateUnreadCount(currentCount - 1);
+                            }
+                        }
+                    }
+                });
+            }
+            if (markAllReadBtn) { /* ... same ... */ 
+                markAllReadBtn.addEventListener('click', function(e) {
+                    e.preventDefault(); e.stopPropagation();
+                    const formData = new FormData();
+                    formData.append('mark_all', 'true');
+                    fetch('ajax_handlers/mark_notification_read.php', { method: 'POST', body: formData })
+                    .then(response => response.json()).then(data => { if (data.success) fetchNotifications(); });
+                });
+            }
+            if (notificationsToggle && notificationsDropdown) { /* ... same ... */ 
+                notificationsToggle.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const isHidden = notificationsDropdown.classList.toggle('hidden');
+                    if (profileDropdown) profileDropdown.classList.add('hidden');
+                    if (!isHidden) fetchNotifications(); // Fetch only when opening
+                });
+            }
+
+
+            // --- Close dropdowns on outside click ---
+            document.addEventListener('click', (e) => {
+                if (notificationsDropdown && !notificationsToggle.contains(e.target) && !notificationsDropdown.contains(e.target)) {
+                    notificationsDropdown.classList.add('hidden');
+                }
+                if (profileDropdown && !profileToggle.contains(e.target) && !profileDropdown.contains(e.target)) {
+                    profileDropdown.classList.add('hidden');
+                }
+            });
+
+            // --- Add Board Modal Script ---
+            // ... (Your existing add board modal script) ...
+            const addBoardBtn = document.getElementById('add-board-btn');
+            const addBoardModal = document.getElementById('add-board-modal');
+            const closeModalBtn = document.getElementById('close-modal-btn');
+            const createBoardBtn = document.getElementById('create-board-btn');
+            const boardNameModalInput = document.getElementById('board-name-modal');
+            const boardTemplateModalSelect = document.getElementById('board-template-modal');
+
+            if (addBoardBtn) addBoardBtn.addEventListener('click', () => addBoardModal.classList.remove('hidden'));
+            if (closeModalBtn) closeModalBtn.addEventListener('click', () => addBoardModal.classList.add('hidden'));
+            if (addBoardModal) addBoardModal.addEventListener('click', function(e) { if (e.target === this) this.classList.add('hidden'); });
+            if (createBoardBtn) {
+                createBoardBtn.addEventListener('click', () => {
+                    const boardName = boardNameModalInput.value.trim();
+                    const boardTemplate = boardTemplateModalSelect.value;
+                    if (boardName) {
+                        fetch('create_board.php', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                            body: `board_name=${encodeURIComponent(boardName)}&board_template=${encodeURIComponent(boardTemplate)}`
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.success) {
+                                // Redirect to the new board or reload dashboard
+                                // For simplicity, reload. For better UX, redirect to kanban.php?board_id=NEW_ID
+                                location.reload(); 
+                            } else {
+                                alert(`Error creating board: ${data.message || 'Unknown error'}`);
+                            }
+                        })
+                        .catch(error => alert('An error occurred while creating the board.'));
+                    } else {
+                        alert('Please enter a board name.');
+                    }
+                });
+            }
+
+
+            // --- Show Archived Toggle Script ---
+            const showArchivedToggle = document.getElementById('show-archived-toggle');
+            if (showArchivedToggle) {
+                showArchivedToggle.addEventListener('change', function() {
+                    const currentUrl = new URL(window.location.href);
+                    if (this.checked) {
+                        currentUrl.searchParams.set('show_archived', '1');
+                    } else {
+                        currentUrl.searchParams.delete('show_archived');
+                    }
+                    window.location.href = currentUrl.toString();
+                });
             }
         });
-
-        const addBoardBtn = document.getElementById('add-board-btn');
-        const addBoardModal = document.getElementById('add-board-modal');
-        const closeModalBtn = document.getElementById('close-modal-btn');
-        const createBoardBtn = document.getElementById('create-board-btn');
-        const boardNameModalInput = document.getElementById('board-name-modal');
-        const boardTemplateModalSelect = document.getElementById('board-template-modal');
-
-        if (addBoardBtn) addBoardBtn.addEventListener('click', () => addBoardModal.classList.remove('hidden'));
-        if (closeModalBtn) closeModalBtn.addEventListener('click', () => addBoardModal.classList.add('hidden'));
-        if (addBoardModal) addBoardModal.addEventListener('click', function(e) { if (e.target === this) this.classList.add('hidden'); });
-        if (createBoardBtn) {
-            createBoardBtn.addEventListener('click', () => {
-                const boardName = boardNameModalInput.value.trim();
-                const boardTemplate = boardTemplateModalSelect.value;
-                if (boardName) {
-                    fetch('create_board.php', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                        body: `board_name=${encodeURIComponent(boardName)}&board_template=${encodeURIComponent(boardTemplate)}`
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            location.reload();
-                        } else {
-                            alert(`Error creating board: ${data.message || 'Unknown error'}`);
-                        }
-                    })
-                    .catch(error => alert('An error occurred while creating the board.'));
-                } else {
-                    alert('Please enter a board name.');
-                }
-            });
-        }
     </script>
 </body>
 </html>

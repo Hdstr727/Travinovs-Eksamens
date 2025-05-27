@@ -221,6 +221,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
              $error = "No active project selected to remove a collaborator from.";
         }
     }
+
+    // Archive Project
+    if (isset($_POST['archive_project'])) {
+        $sql_archive = "UPDATE Planotajs_Boards SET is_archived = 1, updated_at = CURRENT_TIMESTAMP WHERE board_id = ? AND user_id = ?";
+        $stmt_archive = $connection->prepare($sql_archive);
+        $stmt_archive->bind_param("ii", $active_board_id, $user_id);
+        
+        if ($stmt_archive->execute()) {
+            $message = "Project archived successfully!";
+            $board_details['is_archived'] = 1; // Update local state for immediate UI reflection
+            if (function_exists('log_activity')) {
+                log_activity($connection, $active_board_id, $user_id, 'project_archived', 'Project "' . $board_details['board_name'] . '" was archived.');
+            }
+            // No need to refresh $boards list, as archived projects are still shown by default
+        } else {
+            $error = "Error archiving project: " . $connection->error;
+        }
+        $stmt_archive->close();
+    }
+
+    // Unarchive Project
+    if (isset($_POST['unarchive_project'])) {
+        $sql_unarchive = "UPDATE Planotajs_Boards SET is_archived = 0, updated_at = CURRENT_TIMESTAMP WHERE board_id = ? AND user_id = ?";
+        $stmt_unarchive = $connection->prepare($sql_unarchive);
+        $stmt_unarchive->bind_param("ii", $active_board_id, $user_id);
+        
+        if ($stmt_unarchive->execute()) {
+            $message = "Project unarchived successfully!";
+            $board_details['is_archived'] = 0; // Update local state
+            if (function_exists('log_activity')) {
+                log_activity($connection, $active_board_id, $user_id, 'project_unarchived', 'Project "' . $board_details['board_name'] . '" was unarchived.');
+            }
+        } else {
+            $error = "Error unarchiving project: " . $connection->error;
+        }
+        $stmt_unarchive->close();
+    }
+
+    // Delete Project (Soft Delete)
+    if (isset($_POST['delete_project'])) {
+        $board_name_to_log = $board_details['board_name']; // Get name before it's "gone"
+        $sql_delete = "UPDATE Planotajs_Boards SET is_deleted = 1, updated_at = CURRENT_TIMESTAMP WHERE board_id = ? AND user_id = ?";
+        $stmt_delete = $connection->prepare($sql_delete);
+        $stmt_delete->bind_param("ii", $active_board_id, $user_id);
+        
+        if ($stmt_delete->execute()) {
+            if (function_exists('log_activity')) {
+                // Note: After soft delete, the board_id still exists, so logging is fine.
+                // For hard delete, log before deleting.
+                log_activity($connection, $active_board_id, $user_id, 'project_deleted', 'Project "' . $board_name_to_log . '" was deleted.');
+            }
+            $_SESSION['settings_message'] = "Project '" . htmlspecialchars($board_name_to_log) . "' deleted successfully!";
+            header("Location: project_settings.php"); // Redirect to settings page without specific board
+            exit();
+        } else {
+            $error = "Error deleting project: " . $connection->error;
+        }
+        $stmt_delete->close();
+    }
 }
 ?>
 
@@ -565,15 +624,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <p class="text-gray-700 mb-4">These actions are irreversible. Please proceed with caution.</p>
                     
                     <div class="flex flex-wrap gap-3">
-                        <button class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
-                            <i class="fas fa-archive"></i> Archive Project
-                        </button>
-                        <button class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center gap-2"
-                                onclick="return confirm('Are you absolutely sure you want to delete this project? This action cannot be undone.')">
-                            <i class="fas fa-trash-alt"></i> Delete Project
-                        </button>
+                        <!-- Archive/Unarchive Project Form -->
+                        <form method="post" action="project_settings.php?board_id=<?= $active_board_id ?>" 
+                              onsubmit="return confirm('Are you sure you want to <?= ($board_details['is_archived'] ?? 0) ? 'unarchive' : 'archive' ?> this project?');" 
+                              class="inline-block">
+                            <?php if ($board_details['is_archived'] ?? 0): ?>
+                                <button type="submit" name="unarchive_project" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+                                    <i class="fas fa-undo"></i> Unarchive Project
+                                </button>
+                            <?php else: ?>
+                                <button type="submit" name="archive_project" class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+                                    <i class="fas fa-archive"></i> Archive Project
+                                </button>
+                            <?php endif; ?>
+                        </form>
+                        <!-- Delete Project Form -->
+                        <form method="post" action="project_settings.php?board_id=<?= $active_board_id ?>" 
+                              onsubmit="return confirm('Are you absolutely sure you want to delete this project? This action cannot be undone and will remove all associated data.');" 
+                              class="inline-block">
+                            <button type="submit" name="delete_project" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center gap-2" <?= ($board_details['is_archived'] ?? 0) ? 'disabled title="Unarchive project first to delete"' : '' ?>>
+                                <i class="fas fa-trash-alt"></i> Delete Project
+                            </button>
+                        </form>
                     </div>
+                     <?php if ($board_details['is_archived'] ?? 0): ?>
+                        <p class="text-sm text-yellow-700 mt-2">Note: To delete this project, you must unarchive it first.</p>
+                    <?php endif; ?>
                 </div>
+            </div>
             </div>
 
             <!-- Activity Log Tab -->
