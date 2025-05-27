@@ -295,24 +295,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
                 </form>
             </div>
             
+            <!-- Collaborators Tab -->
             <div id="collaborators-tab" class="settings-tab hidden">
-                <h2 class="text-xl font-bold mb-4">Collaborators</h2>
-                <?php if ($board_details['is_archived']): ?><div class="mb-4 p-3 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700"><p><i class="fas fa-info-circle mr-2"></i>Collaborator management is disabled for archived projects.</p></div><?php endif; ?>
+                <h2 class="text-xl font-bold mb-4">Manage Collaborators</h2>
+                <?php if ($board_details['is_archived']): ?>
+                    <div class="mb-4 p-3 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700">
+                        <p><i class="fas fa-info-circle mr-2"></i>Collaborator management is disabled for archived projects.</p>
+                    </div>
+                <?php endif; ?>
+                
+                <!-- This section is now primarily for inviting -->
                 <div class="mb-8 p-4 border rounded-lg bg-gray-50 <?= ($board_details['is_archived'] ?? 0) ? 'opacity-50 pointer-events-none' : '' ?>">
-                    <h3 class="text-lg font-semibold mb-3">Add Collaborator</h3>
-                    <form method="post" action="project_settings.php?board_id=<?= $active_board_id ?>" class="flex flex-wrap gap-3 items-end">
-                        <div class="flex-grow min-w-[200px]"><label for="collaborator_email" class="block text-gray-700 font-medium mb-2">Email Address</label><input type="email" id="collaborator_email" name="collaborator_email" placeholder="user@example.com" required class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#e63946]"></div>
-                        <div class="min-w-[150px]"><label for="permission_level" class="block text-gray-700 font-medium mb-2">Permission Level</label><select id="permission_level" name="permission_level" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#e63946]"><option value="view">View</option><option value="edit">Edit</option><option value="admin">Admin</option></select></div>
-                        <div><button type="submit" name="add_collaborator" class="bg-[#e63946] text-white px-6 py-2 rounded-lg hover:bg-red-700">Add</button></div>
-                    </form>
+                    <h3 class="text-lg font-semibold mb-3">Invite New Collaborator</h3>
+                    <p class="text-sm text-gray-600 mb-3">Invited users will receive a notification to accept or decline the invitation.</p>
+                     <button onclick="openInvitationModal()" class="bg-[#e63946] text-white px-6 py-2 rounded-lg hover:bg-red-700 flex items-center gap-2 w-full sm:w-auto justify-center">
+                        <i class="fas fa-user-plus"></i> Send Invitation
+                    </button>
                 </div>
+                
                 <div class="<?= ($board_details['is_archived'] ?? 0) ? 'opacity-50 pointer-events-none' : '' ?>">
-                    <div class="flex justify-between items-center mb-4"><h3 class="text-lg font-semibold">Current Collaborators</h3><button onclick="openInvitationModal()" class="bg-[#e63946] text-white px-4 py-2 rounded-lg hover:bg-red-700 flex items-center gap-2"><i class="fas fa-user-plus"></i> Invite</button></div>
+                    <h3 class="text-lg font-semibold mb-3">Current Collaborators</h3>
                     <?php if (empty($collaborators)): ?>
-                        <p class="text-gray-500">No collaborators added yet.</p>
+                        <p class="text-gray-500">No active collaborators on this project yet.</p>
                     <?php else: ?>
                         <div class="overflow-x-auto">
                             <table class="min-w-full bg-white border">
+                                <!-- Table header -->
                                 <thead><tr class="bg-gray-100"><th class="py-3 px-4 text-left text-sm font-semibold text-gray-600">Username</th><th class="py-3 px-4 text-left text-sm font-semibold text-gray-600">Email</th><th class="py-3 px-4 text-left text-sm font-semibold text-gray-600">Permission</th><th class="py-3 px-4 text-right text-sm font-semibold text-gray-600">Actions</th></tr></thead>
                                 <tbody>
                                     <?php foreach ($collaborators as $collab): ?>
@@ -331,7 +339,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
                                                 </form>
                                             </td>
                                             <td class="py-3 px-4 text-right">
-                                                <form method="post" action="project_settings.php?board_id=<?= $active_board_id ?>" onsubmit="return confirm('Are you sure you want to remove this collaborator?');" style="display: inline;">
+                                                <form method="post" action="project_settings.php?board_id=<?= $active_board_id ?>" 
+                                                      onsubmit="return confirm('Are you sure you want to remove this collaborator?');" style="display: inline;">
                                                     <input type="hidden" name="collaboration_id" value="<?= $collab['collaboration_id'] ?>">
                                                     <button type="submit" name="remove_collaborator" class="text-red-600 hover:underline text-sm">Remove</button>
                                                 </form>
@@ -343,15 +352,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
                         </div>
                     <?php endif; ?>
                 </div>
+
+                <!-- Pending Invitations Section (NEW) -->
+                <?php
+                $pending_invitations = [];
+                if ($active_board_id > 0 && $board_details && ($board_details['user_id'] == $user_id) ) { // Only owner sees pending
+                    $sql_pending = "SELECT i.invitation_id, i.permission_level, i.custom_message, i.created_at, u.username as invited_username, u.email as invited_email
+                                    FROM Planotajs_Invitations i
+                                    JOIN Planotajs_Users u ON i.invited_user_id = u.user_id
+                                    WHERE i.board_id = ? AND i.status = 'pending'";
+                    $stmt_pending = $connection->prepare($sql_pending);
+                    $stmt_pending->bind_param("i", $active_board_id);
+                    $stmt_pending->execute();
+                    $result_pending = $stmt_pending->get_result();
+                    while ($row = $result_pending->fetch_assoc()) {
+                        $pending_invitations[] = $row;
+                    }
+                    $stmt_pending->close();
+                }
+                ?>
+                <?php if (!empty($pending_invitations)): ?>
+                <div class="mt-8 <?= ($board_details['is_archived'] ?? 0) ? 'opacity-50 pointer-events-none' : '' ?>">
+                    <h3 class="text-lg font-semibold mb-3">Pending Invitations</h3>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full bg-white border">
+                            <thead><tr class="bg-gray-100"><th class="py-3 px-4 text-left text-sm font-semibold text-gray-600">Username</th><th class="py-3 px-4 text-left text-sm font-semibold text-gray-600">Email</th><th class="py-3 px-4 text-left text-sm font-semibold text-gray-600">Permission</th><th class="py-3 px-4 text-left text-sm font-semibold text-gray-600">Sent</th><th class="py-3 px-4 text-right text-sm font-semibold text-gray-600">Actions</th></tr></thead>
+                            <tbody>
+                                <?php foreach ($pending_invitations as $invite): ?>
+                                    <tr class="border-t hover:bg-gray-50">
+                                        <td class="py-3 px-4"><?= htmlspecialchars($invite['invited_username']) ?></td>
+                                        <td class="py-3 px-4"><?= htmlspecialchars($invite['invited_email']) ?></td>
+                                        <td class="py-3 px-4"><?= htmlspecialchars(ucfirst($invite['permission_level'])) ?></td>
+                                        <td class="py-3 px-4 text-xs text-gray-500"><?= date('M d, Y', strtotime($invite['created_at'])) ?></td>
+                                        <td class="py-3 px-4 text-right">
+                                            <button onclick="cancelInvitation(<?= $invite['invitation_id'] ?>)" class="text-red-600 hover:underline text-sm">Cancel</button>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <?php endif; ?>
+
+
+                <!-- Invitation Modal (HTML structure remains the same, action points to contents/send_invitation.php) -->
                 <div id="invitationModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
                     <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-auto">
                         <div class="flex justify-between items-center border-b px-6 py-4"><h3 class="text-xl font-bold">Invite Collaborator</h3><button onclick="closeInvitationModal()" class="text-gray-500 hover:text-gray-700"><i class="fas fa-times"></i></button></div>
                         <form id="sendInvitationForm" method="post" action="contents/send_invitation.php" class="p-6">
-                            <input type="hidden" name="board_id" value="<?= $active_board_id ?>"><input type="hidden" name="board_name" value="<?= htmlspecialchars($board_details['board_name'] ?? '') ?>">
+                            <input type="hidden" name="board_id" value="<?= $active_board_id ?>">
+                            <input type="hidden" name="board_name" value="<?= htmlspecialchars($board_details['board_name'] ?? '') ?>">
                             <div class="mb-4"><label for="invitation_email" class="block text-gray-700 font-medium mb-2">Email Address</label><input type="email" id="invitation_email" name="email" required placeholder="user@example.com" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#e63946]"></div>
                             <div class="mb-4"><label for="invitation_permission_level" class="block text-gray-700 font-medium mb-2">Permission Level</label><select id="invitation_permission_level" name="permission_level" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#e63946]"><option value="view">View</option><option value="edit">Edit</option><option value="admin">Admin</option></select></div>
                             <div class="mb-4"><label for="custom_message" class="block text-gray-700 font-medium mb-2">Personal Message (Optional)</label><textarea id="custom_message" name="custom_message" rows="3" placeholder="Add a personal message..." class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#e63946]"></textarea></div>
-                            <div class="mt-6 flex justify-end"><button type="button" onclick="closeInvitationModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg mr-3">Cancel</button><button type="submit" name="send_invitation" class="bg-[#e63946] text-white px-6 py-2 rounded-lg hover:bg-red-700">Send Invitation</button></div>
+                            <div class="mt-6 flex justify-end"><button type="button" onclick="closeInvitationModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg mr-3">Cancel</button><button type="submit" name="send_invitation_via_modal" class="bg-[#e63946] text-white px-6 py-2 rounded-lg hover:bg-red-700">Send Invitation</button></div>
                             <div id="invitationStatus" class="mt-4"></div>
                         </form>
                     </div>

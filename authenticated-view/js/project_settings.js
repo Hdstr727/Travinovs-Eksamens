@@ -1,4 +1,3 @@
-//authenticated-view\js\project_settings.js
 document.addEventListener('DOMContentLoaded', () => {
     // Function to show/hide settings tabs
     window.showTab = function(tabName, clickedLink) {
@@ -29,7 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!document.querySelector('link[href*="fontawesome"]')) {
         const fontAwesome = document.createElement('link');
         fontAwesome.rel = 'stylesheet';
-        fontAwesome.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'; // Ensure this version is suitable
+        fontAwesome.href = 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css';
         document.head.appendChild(fontAwesome);
     }
 
@@ -75,7 +74,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 invitationStatusDiv.innerHTML = '<p class="text-sm text-gray-500">Sending...</p>';
             }
 
-            fetch(this.action, { // this.action should be correctly set in the HTML form
+            // The form's action attribute should be "contents/send_invitation.php"
+            // This path is relative to project_settings.php (in authenticated-view/)
+            fetch(this.action, { 
                 method: 'POST',
                 body: formData
             })
@@ -86,9 +87,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         invitationStatusDiv.innerHTML = `<p class="text-sm text-green-600">${data.message}</p>`;
                         setTimeout(() => { 
                             closeInvitationModal(); 
-                            // Optionally, reload the page or just the collaborators list if the invitation auto-adds
-                            // For now, user might need to manually refresh or we can add more complex AJAX to update list
-                        }, 2000);
+                            // Reload the page to show pending invitations or updated collaborator list
+                            window.location.reload(); 
+                        }, 2500); // Increased delay slightly
                     } else {
                         invitationStatusDiv.innerHTML = `<p class="text-sm text-red-600">Error: ${data.message}</p>`;
                     }
@@ -103,19 +104,46 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // Function to cancel a pending invitation (NEW)
+    window.cancelInvitation = function(invitationId) {
+        if (!confirm("Are you sure you want to cancel this invitation?")) return;
+
+        const formData = new FormData();
+        formData.append('invitation_id', invitationId);
+        
+        // Path relative to project_settings.php (in authenticated-view/)
+        fetch('ajax_handlers/cancel_invitation.php', { 
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert("Invitation cancelled successfully.");
+                window.location.reload(); // Reload to update the pending list
+            } else {
+                alert("Error cancelling invitation: " + data.message);
+            }
+        })
+        .catch(error => {
+            console.error("Cancel invitation error:", error);
+            alert("An error occurred while cancelling the invitation.");
+        });
+    }
+
     // Activity Log Filter Logic
     const activityFilterElement = document.getElementById('activity-filter');
     if (activityFilterElement) {
         activityFilterElement.addEventListener('change', function() {
-            const filterValue = this.value; // e.g., "all", "task", "collaborator"
-            const activitiesContainer = document.querySelector('#activity-tab .divide-y'); // Target the container of activities
+            const filterValue = this.value; 
+            const activitiesContainer = document.querySelector('#activity-tab .divide-y'); 
             if (activitiesContainer) {
                 const activities = activitiesContainer.querySelectorAll('[data-activity-category]');
                 
                 activities.forEach(activity => {
                     const activityCategory = activity.dataset.activityCategory;
                     if (filterValue === 'all' || activityCategory === filterValue) {
-                        activity.style.display = 'flex'; // Assuming 'flex' is the default display
+                        activity.style.display = 'flex'; 
                     } else {
                         activity.style.display = 'none';
                     }
@@ -127,7 +155,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Activate tab based on URL hash on page load
     const hash = window.location.hash.substring(1);
     const validTabs = ['general', 'collaborators', 'notifications', 'advanced', 'activity'];
-    let initialTab = 'general'; // Default tab
+    let initialTab = 'general'; 
 
     if (hash && validTabs.includes(hash)) {
         initialTab = hash;
@@ -137,7 +165,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (initialTabLink) {
         showTab(initialTab, initialTabLink);
     } else {
-        // Fallback if the link for the initial tab isn't found (e.g., bad hash)
         const defaultTabLink = document.querySelector(`#settings-tabs-nav a[href="#general"]`);
         if (defaultTabLink) {
             showTab('general', defaultTabLink);

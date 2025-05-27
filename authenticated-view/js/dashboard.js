@@ -1,3 +1,5 @@
+//js/dashboard.js
+
 document.addEventListener('DOMContentLoaded', function() {
     // --- Highlight task from URL hash ---
     if (window.location.hash && window.location.hash.startsWith('#task-')) {
@@ -67,26 +69,156 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function renderNotifications(notifications) {
-        if (!notificationsList) return;
-        if (!notifications || notifications.length === 0) {
-            notificationsList.innerHTML = '<p class="text-sm text-gray-600">No new notifications.</p>'; return;
+    const notificationsList = document.getElementById('notifications-list');
+    if (!notificationsList) {
+        console.error("Notifications list element not found!");
+        return;
+    }
+
+    if (!notifications || notifications.length === 0) {
+        notificationsList.innerHTML = '<p class="text-sm text-gray-600">No new notifications.</p>';
+        return;
+    }
+
+    let html = '';
+    notifications.forEach(notif => {
+        // DETAILED LOGGING FOR EACH NOTIFICATION OBJECT
+        console.log("--- Processing Notification ---");
+        console.log("Full notif object:", JSON.parse(JSON.stringify(notif))); // Deep copy for inspection
+        console.log("notif.notification_id:", notif.notification_id);
+        console.log("notif.type:", notif.type, "(Typeof: " + typeof notif.type + ")");
+        console.log("notif.related_entity_type:", notif.related_entity_type, "(Typeof: " + typeof notif.related_entity_type + ")");
+        console.log("notif.related_entity_id:", notif.related_entity_id, "(Typeof: " + typeof notif.related_entity_id + ")");
+        console.log("notif.is_read:", notif.is_read, "(Typeof: " + typeof notif.is_read + ")");
+        // END DETAILED LOGGING
+
+        const isUnreadClass = notif.is_read == 0 ? 'font-semibold bg-sky-50' : 'text-gray-700';
+        const messageText = String(notif.message || '').replace(/</g, "<").replace(/>/g, ">");
+        const createdAtText = String(notif.formatted_created_at || '').replace(/</g, "<").replace(/>/g, ">");
+        
+        let actionButtons = '';
+        if (notif.type === 'invitation' && 
+            notif.related_entity_type === 'invitation' && 
+            notif.related_entity_id && // This checks if it's not null, undefined, 0, false, NaN, or an empty string
+            notif.is_read == 0) { // Using loose equality for is_read
+
+            actionButtons = `
+                <div class="mt-2 flex space-x-2">
+                    <button 
+                        onclick="handleInvitationAction(${notif.related_entity_id}, 'accept', this)"
+                        class="text-xs bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded">
+                        Accept
+                    </button>
+                    <button 
+                        onclick="handleInvitationAction(${notif.related_entity_id}, 'decline', this)"
+                        class="text-xs bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded">
+                        Decline
+                    </button>
+                </div>`;
+            console.log(`   ACTION BUTTONS GENERATED for invite ID ${notif.related_entity_id}`);
+        } else if (notif.type === 'invitation' && notif.is_read == 1) {
+             actionButtons = `<p class="text-xs text-gray-500 italic mt-1">Invitation already actioned.</p>`;
+             console.log(`   Invitation (ID ${notif.related_entity_id}) already actioned (is_read = 1).`);
+        } else if (notif.type === 'invitation') {
+             // If it's an invitation but didn't meet the above conditions
+             console.log(`   Invitation (ID ${notif.related_entity_id}) did NOT meet criteria for action buttons. is_read: ${notif.is_read}, related_entity_id: ${notif.related_entity_id}`);
         }
-        let html = '';
-        notifications.forEach(notif => {
-            const isUnreadClass = notif.is_read == 0 ? 'font-semibold bg-sky-50' : 'text-gray-700';
-            const messageText = String(notif.message || '').replace(/</g, "<").replace(/>/g, ">");
-            const createdAtText = String(notif.formatted_created_at || '').replace(/</g, "<").replace(/>/g, ">");
-            const linkHtml = notif.link ? `<a href="${encodeURI(notif.link)}" class="block hover:bg-gray-100 p-2 rounded ${isUnreadClass}" data-id="${notif.notification_id}">` : `<div class="p-2 ${isUnreadClass}" data-id="${notif.notification_id}">`;
-            const linkEndHtml = notif.link ? `</a>` : `</div>`;
-            html += `<div class="notification-item border-b border-gray-200 last:border-b-0">${linkHtml}<p class="text-sm ">${messageText}</p><p class="text-xs text-gray-500 mt-1">${createdAtText}</p>${linkEndHtml}</div>`;
-        });
-        notificationsList.innerHTML = html;
-        document.querySelectorAll('.notification-item a, .notification-item div[data-id]').forEach(item => {
+
+
+        const linkHtml = notif.link && !actionButtons ? 
+            `<a href="${encodeURI(notif.link)}" class="block hover:bg-gray-100 p-2 rounded ${isUnreadClass}" data-id="${notif.notification_id}">` : 
+            `<div class="p-2 ${isUnreadClass}" data-id="${notif.notification_id}">`;
+        const linkEndHtml = notif.link && !actionButtons ? `</a>` : `</div>`;
+
+        html += `<div class="notification-item border-b border-gray-200 last:border-b-0">
+                    ${linkHtml}
+                        <p class="text-sm ">${messageText}</p>
+                        <p class="text-xs text-gray-500 mt-1">${createdAtText}</p>
+                        ${actionButtons}
+                    ${linkEndHtml}
+                 </div>`;
+    });
+    notificationsList.innerHTML = html;
+
+    document.querySelectorAll('.notification-item > a, .notification-item > div[data-id]').forEach(item => {
+        if (!item.querySelector('button[onclick^="handleInvitationAction"]')) {
             item.addEventListener('click', function(e) {
-                const notificationId = this.dataset.id; const isLink = this.tagName === 'A';
-                if (this.classList.contains('font-semibold')) markNotificationAsRead(notificationId, !isLink);
-                if (!isLink) e.stopPropagation();
+                const notificationId = this.dataset.id;
+                if (this.classList.contains('font-semibold')) { 
+                    markNotificationAsRead(notificationId, this.tagName !== 'A');
+                }
             });
+        }
+    });
+
+    notificationsList.innerHTML = html;
+    // Re-attach general click listeners for marking as read (if not handled by action buttons)
+    document.querySelectorAll('.notification-item > a, .notification-item > div[data-id]').forEach(item => {
+        // Check if it already has invitation action buttons to avoid double handling
+        if (!item.querySelector('button[onclick^="handleInvitationAction"]')) {
+            item.addEventListener('click', function(e) {
+                const notificationId = this.dataset.id;
+                if (this.classList.contains('font-semibold')) { // If unread
+                    markNotificationAsRead(notificationId, this.tagName !== 'A');
+                }
+                if (this.tagName !== 'A') e.stopPropagation();
+            });
+        }
+    });
+}
+
+    // NEW function to handle accept/decline clicks
+    window.handleInvitationAction = function(invitationId, action, buttonElement) {
+        buttonElement.disabled = true; // Prevent double clicks
+        buttonElement.textContent = 'Processing...';
+        const otherButton = action === 'accept' ? 
+                            buttonElement.nextElementSibling : 
+                            buttonElement.previousElementSibling;
+        if(otherButton) otherButton.disabled = true;
+
+
+        const formData = new FormData();
+        formData.append('invitation_id', invitationId);
+
+        let targetUrl = '';
+        if (action === 'accept') {
+            targetUrl = 'ajax_handlers/accept_invitation.php';
+        } else if (action === 'decline') {
+            targetUrl = 'ajax_handlers/decline_invitation.php'; // You'll need to create this
+        } else {
+            console.error('Invalid invitation action:', action);
+            buttonElement.disabled = false;
+            if(otherButton) otherButton.disabled = false;
+            buttonElement.textContent = action.charAt(0).toUpperCase() + action.slice(1);
+            return;
+        }
+
+        fetch(targetUrl, { method: 'POST', body: formData })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // alert(data.message); // Or update UI more gracefully
+                // Remove the action buttons or the whole notification item
+                const notificationItem = buttonElement.closest('.notification-item');
+                if (notificationItem) {
+                    // Replace buttons with a status message or remove item
+                    const actionDiv = buttonElement.parentElement;
+                    if(actionDiv) actionDiv.innerHTML = `<p class="text-xs text-gray-600 italic mt-1">Invitation ${action}ed.</p>`;
+                }
+                fetchNotifications(); // Refresh the list to reflect changes and update counts
+            } else {
+                alert('Error: ' + data.message);
+                buttonElement.disabled = false;
+                if(otherButton) otherButton.disabled = false;
+                buttonElement.textContent = action.charAt(0).toUpperCase() + action.slice(1);
+            }
+        })
+        .catch(error => {
+            console.error('Invitation action error:', error);
+            alert('An error occurred.');
+            buttonElement.disabled = false;
+            if(otherButton) otherButton.disabled = false;
+            buttonElement.textContent = action.charAt(0).toUpperCase() + action.slice(1);
         });
     }
 
