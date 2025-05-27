@@ -2,13 +2,13 @@
 // ajax_handlers/delete_column.php
 session_start();
 require_once '../../admin/database/connection.php';
-require_once 'utils/update_board_activity.php';
+require_once '../core/functions.php'; // For log_and_notify and helpers
 
 if (!isset($_SESSION['user_id'])) {
     echo json_encode(['success' => false, 'message' => 'Not logged in']);
     exit();
 }
-$user_id = $_SESSION['user_id'];
+$actor_user_id = $_SESSION['user_id'];
 
 if (!isset($_POST['column_id'], $_POST['board_id'])) {
     echo json_encode(['success' => false, 'message' => 'Column ID and Board ID are required.']);
@@ -18,59 +18,89 @@ if (!isset($_POST['column_id'], $_POST['board_id'])) {
 $column_id = intval($_POST['column_id']);
 $board_id = intval($_POST['board_id']);
 
-// ... (permission check - $perm_stmt->close() is inside the if block, should be outside if it proceeds)
+// Fetch column name BEFORE deleting for notification message
+$column_name_for_log = "a column";
+$stmt_col_name = $connection->prepare("SELECT column_name FROM Planotajs_Columns WHERE column_id = ? AND board_id = ?");
+if ($stmt_col_name) {
+    $stmt_col_name->bind_param("ii", $column_id, $board_id);
+    $stmt_col_name->execute();
+    $res_col_name = $stmt_col_name->get_result();
+    if ($col_data = $res_col_name->fetch_assoc()) {
+        $column_name_for_log = $col_data['column_name'];
+    }
+    $stmt_col_name->close();
+}
+
+
 $perm_check_sql = "SELECT pc.column_id FROM Planotajs_Columns pc
                    JOIN Planotajs_Boards b ON pc.board_id = b.board_id
                    LEFT JOIN Planotajs_Collaborators c ON b.board_id = c.board_id AND c.user_id = ?
                    WHERE pc.column_id = ? AND pc.board_id = ?
-                   AND (b.user_id = ? OR c.permission_level = 'admin')
-                   AND pc.is_deleted = 0";
+                   AND (b.user_id = ? OR c.permission_level = 'admin') 
+                   AND pc.is_deleted = 0"; // Only owner or board admin can delete columns
 $perm_stmt = $connection->prepare($perm_check_sql);
-$perm_stmt->bind_param("iiii", $user_id, $column_id, $board_id, $user_id);
+$perm_stmt->bind_param("iiii", $actor_user_id, $column_id, $board_id, $actor_user_id);
 $perm_stmt->execute();
-$perm_result = $perm_stmt->get_result(); // Get result before checking num_rows
+$perm_result = $perm_stmt->get_result(); 
 
 if ($perm_result->num_rows === 0) {
+    $perm_stmt->close(); 
     echo json_encode(['success' => false, 'message' => 'Column not found or not authorized.']);
-    $perm_stmt->close(); // Close here if exiting
     exit();
 }
-$perm_stmt->close(); // Close here if proceeding
+$perm_stmt->close(); 
 
 
 $connection->begin_transaction();
-$operation_successful = false; // Flag
+$operation_successful = false; 
 try {
-    // 1. Soft delete tasks in this column
     $delete_tasks_sql = "UPDATE Planotajs_Tasks SET is_deleted = 1 WHERE column_id = ? AND board_id = ?";
     $delete_tasks_stmt = $connection->prepare($delete_tasks_sql);
     $delete_tasks_stmt->bind_param("ii", $column_id, $board_id);
-    $delete_tasks_stmt->execute(); // Assume success or handle error
+    $delete_tasks_stmt->execute(); 
     $delete_tasks_stmt->close();
 
-    // 2. Soft delete the column itself
     $delete_column_sql = "UPDATE Planotajs_Columns SET is_deleted = 1 WHERE column_id = ? AND board_id = ?";
     $delete_column_stmt = $connection->prepare($delete_column_sql);
     $delete_column_stmt->bind_param("ii", $column_id, $board_id);
-    $delete_column_stmt->execute(); // Assume success or handle error
+    $delete_column_stmt->execute(); 
     $delete_column_stmt->close();
 
     $connection->commit();
-    $operation_successful = true; // Set flag on successful commit
+    $operation_successful = true; 
 
 } catch (Exception $e) {
     $connection->rollback();
-    echo json_encode(['success' => false, 'message' => 'Error deleting column: ' . $e->getMessage()]);
+    error_log("Error deleting column: " . $e->getMessage());
+    echo json_encode(['success' => false, 'message' => 'Error deleting column.']);
     $connection->close();
-    exit(); // Exit after sending error
+    exit(); 
 }
 
 if ($operation_successful) {
-    // Update board activity timestamp
     update_board_last_activity_timestamp($connection, $board_id);
+
+    // --- NOTIFICATION LOGIC ---
+    $board_actor_info = get_board_and_actor_info($connection, $board_id, $actor_user_id);
+    $activity_description = htmlspecialchars($board_actor_info['actor_username']) . " deleted column \"" . htmlspecialchars($column_name_for_log) . "\" from board \"" . htmlspecialchars($board_actor_info['board_name']) . "\".";
+    $recipients = get_board_associated_user_ids($connection, $board_id);
+    $link_to_board = "kanban.php?board_id=" . $board_id;
+
+    log_and_notify(
+        $connection,
+        $board_id,
+        $actor_user_id,
+        'column_deleted',
+        $activity_description,
+        $column_id, // related_entity_id (the deleted column's ID)
+        'column',   // related_entity_type
+        $recipients,
+        $link_to_board
+    );
+    // --- END NOTIFICATION LOGIC ---
+
     echo json_encode(['success' => true]);
 }
-// No else needed, as failure cases exit above
 
 $connection->close();
 ?>
