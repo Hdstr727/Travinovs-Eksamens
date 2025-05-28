@@ -407,7 +407,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
             break; // Process only one danger zone action
         }
     }
-    
+
     // --- HANDLE LEAVE PROJECT ---
     if (isset($_POST['leave_project_submit'])) {
         // Check if the current user is indeed a collaborator and not the owner
@@ -586,13 +586,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
                 if ($current_user_permission_on_active_board && $current_user_permission_on_active_board !== 'owner' && !($board_details['is_archived'] ?? 0) ): 
                 ?>
                     <hr class="my-8 border-gray-300">
-                    <div class="mt-6 p-4 border border-orange-300 rounded-lg bg-orange-50">
-                        <h3 class="text-lg font-semibold mb-2 text-orange-700">Leave Project</h3>
+                    <div class="mt-6 p-4 border border-red-300 rounded-lg bg-red-50">
+                        <h3 class="text-lg font-semibold mb-2 text-red-700">Leave Project</h3> 
                         <p class="text-sm text-gray-600 mb-3">If you leave this project, you will lose access to its content and will need to be invited again to rejoin.</p>
                         <form method="post" action="project_settings.php?board_id=<?= $active_board_id ?>" 
                               onsubmit="return confirm('Are you sure you want to leave the project \"<?= htmlspecialchars($board_details['board_name']) ?>\"? You will lose access.');">
                             <input type="hidden" name="action" value="leave_project">
-                            <button type="submit" name="leave_project_submit" class="bg-orange-500 text-white px-6 py-2 rounded-lg hover:bg-orange-600 transition-colors">
+                            <button type="submit" name="leave_project_submit" class="bg-red-500 text-white px-6 py-2 rounded-lg hover:bg-red-600 transition-colors">
                                 <i class="fas fa-sign-out-alt mr-2"></i>Leave Project
                             </button>
                         </form>
