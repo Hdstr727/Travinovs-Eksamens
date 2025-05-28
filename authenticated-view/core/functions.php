@@ -2,7 +2,7 @@
 // File: authenticated-view/core/functions.php
 
 error_reporting(E_ALL);
-ini_set('display_errors', 1); 
+ini_set('display_errors', 1);
 
 if (!function_exists('update_board_last_activity_timestamp')) {
     function update_board_last_activity_timestamp(mysqli $connection, int $board_id) {
@@ -18,139 +18,294 @@ if (!function_exists('update_board_last_activity_timestamp')) {
     }
 }
 
+
+/**
+ * Retrieves notification preferences for a user regarding a specific activity on a board.
+ * Falls back from board-specific settings -> global user settings -> application defaults.
+ *
+ * @param mysqli $connection DB connection
+ * @param int $user_id The ID of the user whose preferences are being checked
+ * @param ?int $board_id The ID of the board related to the activity (can be null for non-board specific activities)
+ * @param string $activity_type_key The key for the notification setting (e.g., 'notify_task_assignment')
+ * @return array ['should_notify_app' => bool, 'should_notify_email' => bool (currently unused in UI)]
+ */
+if (!function_exists('get_user_notification_preferences')) {
+    function get_user_notification_preferences(mysqli $connection, int $user_id, ?int $board_id, string $activity_type_key): array {
+        // Application-level defaults (match your DB table defaults)
+        $default_prefs = [
+            'event_enabled' => 1, // Default for most events, can be overridden by specific key checks
+            'channel_app'   => 1,
+            'channel_email' => 0,
+        ];
+
+        // Some events might be off by default
+        if (in_array($activity_type_key, ['notify_column_changes', 'notify_task_deleted'])) {
+            $default_prefs['event_enabled'] = 0;
+        }
+
+        $prefs_to_use = $default_prefs;
+        $source = 'application_default';
+
+        // 1. Try board-specific settings if board_id is provided
+        if ($board_id !== null) {
+            $sql_board = "SELECT `{$activity_type_key}`, `channel_app`, `channel_email` 
+                          FROM `Planotajs_NotificationSettings` 
+                          WHERE `user_id` = ? AND `board_id` = ?";
+            $stmt_board = $connection->prepare($sql_board);
+            if ($stmt_board) {
+                $stmt_board->bind_param("ii", $user_id, $board_id);
+                $stmt_board->execute();
+                $result_board = $stmt_board->get_result();
+                if ($row_board = $result_board->fetch_assoc()) {
+                    $prefs_to_use = [
+                        'event_enabled' => (int)$row_board[$activity_type_key],
+                        'channel_app'   => (int)$row_board['channel_app'],
+                        'channel_email' => (int)$row_board['channel_email'],
+                    ];
+                    $source = 'board_specific';
+                    $stmt_board->close();
+                    // Return early if board-specific setting found
+                    return [
+                        'should_notify_app' => ($prefs_to_use['event_enabled'] == 1 && $prefs_to_use['channel_app'] == 1),
+                        'should_notify_email' => ($prefs_to_use['event_enabled'] == 1 && $prefs_to_use['channel_email'] == 1),
+                        'source' => $source
+                    ];
+                }
+                $stmt_board->close();
+            } else {
+                error_log("Error preparing board-specific notification settings query: " . $connection->error);
+            }
+        }
+
+        // 2. Try global user settings (board_id IS NULL)
+        $sql_global = "SELECT `{$activity_type_key}`, `channel_app`, `channel_email` 
+                       FROM `Planotajs_NotificationSettings` 
+                       WHERE `user_id` = ? AND `board_id` IS NULL";
+        $stmt_global = $connection->prepare($sql_global);
+        if ($stmt_global) {
+            $stmt_global->bind_param("i", $user_id);
+            $stmt_global->execute();
+            $result_global = $stmt_global->get_result();
+            if ($row_global = $result_global->fetch_assoc()) {
+                $prefs_to_use = [
+                    'event_enabled' => (int)$row_global[$activity_type_key],
+                    'channel_app'   => (int)$row_global['channel_app'],
+                    'channel_email' => (int)$row_global['channel_email'],
+                ];
+                $source = 'user_global';
+            }
+            $stmt_global->close();
+        } else {
+            error_log("Error preparing global notification settings query: " . $connection->error);
+        }
+        
+        // Final decision based on the hierarchy
+        return [
+            'should_notify_app' => ($prefs_to_use['event_enabled'] == 1 && $prefs_to_use['channel_app'] == 1),
+            'should_notify_email' => ($prefs_to_use['event_enabled'] == 1 && $prefs_to_use['channel_email'] == 1), // Kept for completeness
+            'source' => $source
+        ];
+    }
+}
+
+
+/**
+ * Logs an activity and sends notifications to relevant users based on their preferences.
+ */
 function log_and_notify(
     mysqli $connection,
-    int $board_id,
+    int $board_id, // Can be 0 or null if not board specific, but typically it is.
     int $actor_user_id,
-    string $activity_type,
+    string $activity_type, // e.g., 'task_created', 'new_comment'
     string $activity_description,
     ?int $related_entity_id = null,
     ?string $related_entity_type = null,
-    array $potential_recipient_user_ids = [], 
+    array $potential_recipient_user_ids = [], // Users who *could* receive a notification
     ?string $link = null,
-    ?string $notification_type_override = null // New optional parameter
+    ?string $notification_type_override = null // e.g., 'invitation' for Planotajs_Notifications.type
 ) {
     error_log("--- log_and_notify CALLED ---");
-    error_log("log_and_notify: board_id = $board_id, actor_user_id = $actor_user_id, activity_type = '$activity_type'");
-    // ... (other logs)
+    error_log("Board: $board_id, Actor: $actor_user_id, Activity: $activity_type, Desc: $activity_description");
 
+    // 1. Log the activity
     $stmt_activity = $connection->prepare("INSERT INTO Planotajs_ActivityLog (board_id, user_id, activity_type, activity_description, related_entity_id, related_entity_type) VALUES (?, ?, ?, ?, ?, ?)");
-    if (!$stmt_activity) { /* ... error log ... */ return; }
+    if (!$stmt_activity) {
+        error_log("log_and_notify: Prepare failed for ActivityLog: " . $connection->error);
+        return;
+    }
     $stmt_activity->bind_param("iissis", $board_id, $actor_user_id, $activity_type, $activity_description, $related_entity_id, $related_entity_type);
-    if (!$stmt_activity->execute()) { /* ... error log ... */ $stmt_activity->close(); return; }
-    $activity_id = $stmt_activity->insert_id;
+    if (!$stmt_activity->execute()) {
+        error_log("log_and_notify: Execute failed for ActivityLog: " . $stmt_activity->error);
+        $stmt_activity->close();
+        return;
+    }
+    $activity_id = $stmt_activity->insert_id; // Get ID of the logged activity
     $stmt_activity->close();
-    if (!$activity_id) { /* ... error log ... */ return; }
-    error_log("log_and_notify: Activity logged successfully. ID: $activity_id");
+    if (!$activity_id) {
+        error_log("log_and_notify: Failed to get insert_id for ActivityLog.");
+        return;
+    }
+    error_log("Activity logged successfully. ID: $activity_id");
 
+    // 2. Determine users to notify (filter out the actor)
     $users_to_notify_final_ids = [];
     foreach ($potential_recipient_user_ids as $recipient_id) {
-        if ($recipient_id != $actor_user_id) {
+        if ($recipient_id != $actor_user_id) { // Don't notify the person who performed the action
             $users_to_notify_final_ids[] = $recipient_id;
         }
     }
     $users_to_notify_final_ids = array_unique($users_to_notify_final_ids);
 
-
     if (empty($users_to_notify_final_ids)) {
-        error_log("log_and_notify: No recipients to notify after filtering actor for activity type '$activity_type'.");
-        // Still proceed if it's a direct notification type like 'invitation' handled by send_invitation.php
-        // but for general board activity, if no recipients, we can stop here for notifications.
-        // However, the function is also used for direct notifications where $potential_recipient_user_ids might be a single user.
-        // The main loop below will handle it.
+        error_log("No recipients to notify after filtering actor for '$activity_type'.");
+        error_log("--- log_and_notify FINISHED (no recipients) ---");
+        return;
     }
 
+    // Map activity_type (from code, e.g., 'task_created') to the DB column name for the setting
+    // (e.g., 'notify_task_created')
     $setting_field_map = [
-        'new_chat_message'      => 'notify_new_chat_message',
         'task_created'          => 'notify_task_created',
+        'task_assigned'         => 'notify_task_assignment',       // When task is assigned TO a user
+        'task_assignment'       => 'notify_task_assignment',       // Generic for assignment events
+        'task_status_changed'   => 'notify_task_status_changed',
+        'task_status'           => 'notify_task_status_changed',   // Alias
         'task_updated'          => 'notify_task_updated',
         'task_deleted'          => 'notify_task_deleted',
-        'column_created'        => 'notify_column_created',
-        'column_updated'        => 'notify_column_updated',
-        'column_deleted'        => 'notify_column_deleted',
-        'task_assigned'         => 'notify_task_assignment',
-        'task_status_changed'   => 'notify_task_status',
-        'new_comment'           => 'notify_comments',
-        'deadline_reminder'     => 'notify_deadline',
-        'collaborator_added'    => 'notify_collaborator', // When a user *becomes* a collaborator (after accepting invite)
-        'invitation_sent'       => 'notify_project_management', // Example: A setting for owners to see invites sent
-        'invitation_accepted'   => 'notify_project_management', // Example: A setting for owners to see invites accepted
-        'invitation_declined'   => 'notify_project_management',
-        'invitation_cancelled'  => 'notify_project_management',
-        // Add other activity types that should trigger general board notifications
+        'new_comment'           => 'notify_new_comment',
+        'comment_added'         => 'notify_new_comment',           // Alias
+        'deadline_reminder'     => 'notify_deadline_reminder',
+        'collaborator_added'    => 'notify_collaborator_added',    // User X joined board Y
+        'invitation_sent'       => 'notify_project_management',    // For owner: an invite was sent for their board
+        'invitation_accepted'   => 'notify_project_management',    // For owner: an invite was accepted for their board
+        'invitation_declined'   => 'notify_project_management',    // For owner: an invite was declined
+        'column_created'        => 'notify_column_changes',
+        'column_updated'        => 'notify_column_changes',
+        'column_deleted'        => 'notify_column_changes',
+        'new_chat_message'      => 'notify_new_chat_message',
+        // Add more mappings as your activity_types evolve
     ];
 
-    // Determine the notification type for Planotajs_Notifications.type column
-    // If an override is provided (like 'invitation' from send_invitation.php), use that.
-    // Otherwise, derive from activity_type or use a default like 'activity'.
-    $notification_db_type = $notification_type_override ?? $activity_type; // Use override or activity_type itself
+    $notification_setting_key = $setting_field_map[$activity_type] ?? null;
 
-    if (empty($potential_recipient_user_ids)) { // If specifically told no one to notify via this general mechanism
-        error_log("log_and_notify: Explicitly no potential recipients provided for general notification. Logging only for '$activity_type'.");
-        error_log("--- log_and_notify FINISHED (explicitly no recipients for general notification) ---");
-        return; // Only log was done.
+    if (!$notification_setting_key) {
+        error_log("No notification setting key found in map for activity_type: '$activity_type'. Cannot check user preferences.");
+        // For specific overrides like 'invitation' where we ALWAYS notify the recipient of the invite
+        // this check might be bypassed if $notification_type_override is set.
+        if (!$notification_type_override) {
+            error_log("--- log_and_notify FINISHED (unknown activity type for preferences) ---");
+            return;
+        }
     }
+    
+    // Determine the 'type' for Planotajs_Notifications table.
+    // 'invitation' notifications are special as they are direct.
+    $notification_db_type = $notification_type_override ?? $activity_type;
 
 
-    // This loop is for general board notifications based on user settings
+    // 3. Iterate through potential recipients and check their preferences
     foreach ($users_to_notify_final_ids as $user_id_to_notify) {
-        if (!isset($setting_field_map[$activity_type])) {
-            error_log("log_and_notify: Activity type '$activity_type' NOT IN setting_field_map. Skipping general notification for user $user_id_to_notify.");
-            continue; // Skip to next user if this activity type doesn't have a general notification setting
-        }
-        $notification_setting_field = $setting_field_map[$activity_type];
-        error_log("log_and_notify: For user $user_id_to_notify, checking setting '$notification_setting_field' for activity '$activity_type'");
+        $should_send_app_notification = false;
 
-        $settings_sql = "SELECT `{$notification_setting_field}`, `channel_app` FROM `Planotajs_NotificationSettings` WHERE `user_id` = ? AND (`board_id` = ? OR `board_id` IS NULL) ORDER BY (`board_id` IS NULL) ASC LIMIT 1";
-        $stmt_settings = $connection->prepare($settings_sql);
-        if (!$stmt_settings) { /* ... error log ... */ continue; }
-        $stmt_settings->bind_param("ii", $user_id_to_notify, $board_id);
-        if (!$stmt_settings->execute()) { /* ... error log ... */ $stmt_settings->close(); continue; }
-        $settings = $stmt_settings->get_result()->fetch_assoc();
-        $stmt_settings->close();
-
-        $should_notify_app = false;
-        if ($settings) {
-            if (isset($settings[$notification_setting_field]) && $settings[$notification_setting_field] == 1 && isset($settings['channel_app']) && $settings['channel_app'] == 1) {
-                $should_notify_app = true;
+        if ($notification_db_type === 'invitation') {
+            // For direct invitations, we generally assume the recipient wants to see it.
+            // The `get_user_notification_preferences` could still be used if you want
+            // users to disable even direct invite notifications, but that's less common.
+            // For simplicity here, direct 'invitation' types will attempt to send an app notification.
+            // The 'channel_app' setting in their global/board prefs could still turn it off.
+            // Let's check their channel_app preference for invitations:
+            $prefs = get_user_notification_preferences($connection, $user_id_to_notify, $board_id, 'notify_project_management'); // Assuming 'invitation' maps to a general project setting
+            if ($prefs['channel_app']) { // We don't check event_enabled for direct invites, only the channel.
+                 $should_send_app_notification = true;
+                 error_log("User $user_id_to_notify: Direct '$notification_db_type' notification. Channel App: ENABLED (Source: {$prefs['source']}). Will send.");
+            } else {
+                 error_log("User $user_id_to_notify: Direct '$notification_db_type' notification. Channel App: DISABLED (Source: {$prefs['source']}). Will NOT send.");
             }
-        } else { // Default behavior if no settings found
-            if ($notification_setting_field !== 'notify_project_management') { // Don't default notify for admin-like things
-                 $should_notify_app = true; // Default to notify for most things
+
+        } elseif ($notification_setting_key) {
+            // For general activities, check full preferences
+            $prefs = get_user_notification_preferences($connection, $user_id_to_notify, $board_id, $notification_setting_key);
+            if ($prefs['should_notify_app']) {
+                $should_send_app_notification = true;
+                error_log("User $user_id_to_notify for '$activity_type' (key: $notification_setting_key): App Notification ENABLED (Source: {$prefs['source']}). Will send.");
+            } else {
+                error_log("User $user_id_to_notify for '$activity_type' (key: $notification_setting_key): App Notification DISABLED (Source: {$prefs['source']}). Will NOT send.");
             }
+        } else {
+            error_log("User $user_id_to_notify: Could not determine preferences for '$activity_type' as notification_setting_key is null and it's not an override type. Skipping.");
+            continue;
         }
 
-        if ($should_notify_app) {
+
+        if ($should_send_app_notification) {
+            // Insert into Planotajs_Notifications
             $stmt_notify = $connection->prepare("INSERT INTO Planotajs_Notifications (user_id, activity_id, board_id, message, link, type, related_entity_id, related_entity_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-            if (!$stmt_notify) { /* ... error log ... */ } 
-            else {
-                // Use the derived $notification_db_type
-                $stmt_notify->bind_param("iiisssis", $user_id_to_notify, $activity_id, $board_id, $activity_description, $link, $notification_db_type, $related_entity_id, $related_entity_type);
-                if (!$stmt_notify->execute()) { /* ... error log ... */ }
+            if (!$stmt_notify) {
+                error_log("log_and_notify: Prepare failed for Notifications table: " . $connection->error);
+            } else {
+                // For 'board_id' in notifications, use the $board_id from function params.
+                // If activity is not board specific, $board_id might be null/0. Adjust table constraint if needed.
+                $current_board_id_for_notif = ($board_id > 0) ? $board_id : null;
+
+                $stmt_notify->bind_param("iiisssis", $user_id_to_notify, $activity_id, $current_board_id_for_notif, $activity_description, $link, $notification_db_type, $related_entity_id, $related_entity_type);
+                if (!$stmt_notify->execute()) {
+                    error_log("log_and_notify: Execute failed for Notifications table: " . $stmt_notify->error);
+                } else {
+                    error_log("In-app notification created for user $user_id_to_notify for activity '$activity_type'.");
+                }
                 $stmt_notify->close();
             }
         }
+
+        // Add email notification logic here if you re-introduce it, checking $prefs['should_notify_email']
     }
     error_log("--- log_and_notify FINISHED ---");
 }
 
+
 function get_board_and_actor_info(mysqli $connection, int $board_id, int $actor_user_id): array {
     $info = ['board_name' => 'A board', 'actor_username' => 'Someone'];
-    $sql = "SELECT b.board_name, u.username as actor_username FROM Planotajs_Boards b, Planotajs_Users u WHERE b.board_id = ? AND u.user_id = ?";
+    // Ensure Planotajs_Users table exists and has user_id, username
+    // Ensure Planotajs_Boards table exists and has board_id, board_name
+    $sql = "SELECT b.board_name, u.username as actor_username 
+            FROM Planotajs_Boards b, Planotajs_Users u 
+            WHERE b.board_id = ? AND u.user_id = ?";
     $stmt = $connection->prepare($sql);
-    if ($stmt) { $stmt->bind_param("ii", $board_id, $actor_user_id); $stmt->execute(); $result = $stmt->get_result();
-        if ($data = $result->fetch_assoc()) { $info['board_name'] = $data['board_name']; $info['actor_username'] = $data['actor_username']; }
+    if ($stmt) {
+        $stmt->bind_param("ii", $board_id, $actor_user_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        if ($data = $result->fetch_assoc()) {
+            $info['board_name'] = $data['board_name'];
+            $info['actor_username'] = $data['actor_username'];
+        }
         $stmt->close();
-    } return $info;
+    } else {
+        error_log("Error preparing statement in get_board_and_actor_info: " . $connection->error);
+    }
+    return $info;
 }
 
 function get_board_associated_user_ids(mysqli $connection, int $board_id): array {
     $user_ids = [];
-    $sql = "(SELECT user_id FROM Planotajs_Boards WHERE board_id = ?) UNION (SELECT user_id FROM Planotajs_Collaborators WHERE board_id = ?)";
+    // Ensure Planotajs_Boards has user_id (owner)
+    // Ensure Planotajs_Collaborators has user_id and board_id
+    $sql = "(SELECT user_id FROM Planotajs_Boards WHERE board_id = ?) 
+            UNION 
+            (SELECT user_id FROM Planotajs_Collaborators WHERE board_id = ?)";
     $stmt = $connection->prepare($sql);
-    if ($stmt) { $stmt->bind_param("ii", $board_id, $board_id); $stmt->execute(); $result = $stmt->get_result();
-        while ($row = $result->fetch_assoc()) { $user_ids[] = $row['user_id']; }
+    if ($stmt) {
+        $stmt->bind_param("ii", $board_id, $board_id);
+        $stmt->execute();
+        $result = $stmt->get_result();
+        while ($row = $result->fetch_assoc()) {
+            $user_ids[] = $row['user_id'];
+        }
         $stmt->close();
-    } return array_unique($user_ids);
+    } else {
+        error_log("Error preparing statement in get_board_associated_user_ids: " . $connection->error);
+    }
+    return array_unique($user_ids);
 }
+
 ?>

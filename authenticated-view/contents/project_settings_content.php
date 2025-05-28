@@ -98,6 +98,73 @@ if ($active_board_id > 0 && $board_details) {
     $stmt_collaborators->close();
 }
 
+// --- Notification Settings Logic ---
+$notification_settings = [];
+// These defaults should match your table's DEFAULT values for events.
+// Channel defaults will be handled during save.
+$default_event_notification_settings = [
+    'notify_task_created' => 1, 'notify_task_assignment' => 1,
+    'notify_task_status_changed' => 1, 'notify_task_updated' => 1,
+    'notify_task_deleted' => 1, 'notify_new_comment' => 1,
+    'notify_deadline_reminder' => 1, 'notify_collaborator_added' => 1,
+    'notify_new_chat_message' => 1, 'notify_column_changes' => 0,
+    'notify_project_management' => 1,
+    // channel_app and channel_email will be merged from DB or their DB defaults.
+];
+// Initial values for channels if no record is found yet, matching DB defaults
+$default_channel_settings = ['channel_app' => 1, 'channel_email' => 0];
+
+
+if ($active_board_id > 0) {
+    $current_settings_from_db = [];
+    // 1. Try to get board-specific settings
+    $sql_notif_settings = "SELECT * FROM Planotajs_NotificationSettings WHERE user_id = ? AND board_id = ?";
+    $stmt_notif_settings = $connection->prepare($sql_notif_settings);
+    if ($stmt_notif_settings) {
+        $stmt_notif_settings->bind_param("ii", $user_id, $active_board_id);
+        $stmt_notif_settings->execute();
+        $result_notif_settings = $stmt_notif_settings->get_result();
+        if ($result_notif_settings->num_rows > 0) {
+            $current_settings_from_db = $result_notif_settings->fetch_assoc();
+            $current_settings_from_db['source'] = 'board_specific';
+        } else {
+            // 2. Try to get global user settings (board_id IS NULL)
+            $sql_global_notif_settings = "SELECT * FROM Planotajs_NotificationSettings WHERE user_id = ? AND board_id IS NULL";
+            $stmt_global_notif_settings = $connection->prepare($sql_global_notif_settings);
+            if ($stmt_global_notif_settings) {
+                $stmt_global_notif_settings->bind_param("i", $user_id);
+                $stmt_global_notif_settings->execute();
+                $result_global_notif_settings = $stmt_global_notif_settings->get_result();
+                if ($result_global_notif_settings->num_rows > 0) {
+                    $current_settings_from_db = $result_global_notif_settings->fetch_assoc();
+                    $current_settings_from_db['source'] = 'global';
+                } else {
+                    $current_settings_from_db['source'] = 'default';
+                }
+                $stmt_global_notif_settings->close();
+            } else { $error = "Error preparing global notification settings query."; $current_settings_from_db['source'] = 'default'; }
+        }
+        $stmt_notif_settings->close();
+    } else { $error = "Error preparing board notification settings query."; $current_settings_from_db['source'] = 'default';}
+    
+    // Merge logic: Start with all possible event keys and channel keys (with their defaults),
+    // then override with what's in the DB (global or board-specific).
+    $notification_settings = array_merge(
+        $default_event_notification_settings, 
+        $default_channel_settings, // Ensure channel keys are present with defaults
+        $current_settings_from_db // DB values (if any) will override defaults
+    );
+    // Ensure source is correctly set if it was from DB
+    if (isset($current_settings_from_db['source'])) {
+        $notification_settings['source'] = $current_settings_from_db['source'];
+    }
+
+
+} else { 
+    $notification_settings = array_merge($default_event_notification_settings, $default_channel_settings);
+    $notification_settings['source'] = 'default_no_board';
+}
+
 // Process form submissions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_details) {
     // Update project settings
@@ -235,6 +302,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
         if ($stmt_delete->execute()) { if (function_exists('log_activity')) { log_activity($connection, $active_board_id, $user_id, 'project_deleted', 'Project "' . $board_name_to_log . '" was deleted.'); }
             $_SESSION['settings_message'] = "Project '" . htmlspecialchars($board_name_to_log) . "' deleted successfully!"; header("Location: project_settings.php"); exit();
         } else { $error = "Error deleting project: " . $connection->error; } $stmt_delete->close();
+    }
+
+    // --- UPDATE NOTIFICATION SETTINGS ---
+    if (isset($_POST['update_notification_settings_submit'])) {
+        $settings_to_update = [];
+        // Only event-based notification fields are expected from the form now
+        $event_notification_fields = [
+            'notify_task_created', 'notify_task_assignment', 'notify_task_status_changed',
+            'notify_task_updated', 'notify_task_deleted', 'notify_new_comment',
+            'notify_deadline_reminder', 'notify_collaborator_added', 'notify_new_chat_message',
+            'notify_column_changes', 'notify_project_management',
+        ];
+
+        foreach ($event_notification_fields as $field) {
+            $settings_to_update[$field] = isset($_POST[$field]) ? 1 : 0;
+        }
+
+        // For board-specific settings saved via this UI,
+        // we explicitly set channel preferences to defaults.
+        // This ensures that enabling event notifications for a board uses standard channels.
+        // These are the DB defaults.
+        $settings_to_update['channel_app'] = 1; 
+        $settings_to_update['channel_email'] = 0;
+
+        // UPSERT logic
+        $sql_upsert_fields_array = array_keys($settings_to_update);
+        $sql_upsert_fields_string = "`" . implode("`, `", $sql_upsert_fields_array) . "`";
+        $sql_upsert_placeholders = implode(", ", array_fill(0, count($settings_to_update), "?"));
+        
+        $sql_update_assignments = [];
+        foreach ($sql_upsert_fields_array as $field) {
+            $sql_update_assignments[] = "`$field` = VALUES(`$field`)";
+        }
+        $sql_update_set = implode(", ", $sql_update_assignments);
+
+        $sql_upsert = "INSERT INTO Planotajs_NotificationSettings (`user_id`, `board_id`, $sql_upsert_fields_string) 
+                       VALUES (?, ?, $sql_upsert_placeholders) 
+                       ON DUPLICATE KEY UPDATE $sql_update_set, `updated_at` = CURRENT_TIMESTAMP";
+        
+        $stmt_upsert = $connection->prepare($sql_upsert);
+
+        if($stmt_upsert) {
+            // Types: user_id (i), board_id (i), then one 'i' for each setting field
+            $types = "ii" . str_repeat("i", count($settings_to_update));
+            $values_for_bind = array_merge([$user_id, $active_board_id], array_values($settings_to_update));
+            
+            $stmt_upsert->bind_param($types, ...$values_for_bind);
+
+            if ($stmt_upsert->execute()) {
+                $message = "Notification settings updated successfully!";
+                // Re-fetch after save to reflect immediate changes, including source.
+                $sql_notif_settings_refresh = "SELECT * FROM Planotajs_NotificationSettings WHERE user_id = ? AND board_id = ?";
+                $stmt_notif_settings_refresh = $connection->prepare($sql_notif_settings_refresh);
+                $stmt_notif_settings_refresh->bind_param("ii", $user_id, $active_board_id);
+                $stmt_notif_settings_refresh->execute();
+                $result_notif_settings_refresh = $stmt_notif_settings_refresh->get_result();
+                if ($result_notif_settings_refresh->num_rows > 0) {
+                    $notification_settings_refreshed = $result_notif_settings_refresh->fetch_assoc();
+                    // Merge with defaults to ensure all keys are present, then with refreshed data
+                    $notification_settings = array_merge($default_event_notification_settings, $default_channel_settings, $notification_settings_refreshed);
+                    $notification_settings['source'] = 'board_specific'; // It's now definitely board specific
+                }
+                $stmt_notif_settings_refresh->close();
+
+                $_SESSION['settings_message'] = $message;
+                header("Location: project_settings.php?board_id=" . $active_board_id . "#notifications");
+                exit();
+            } else {
+                $error = "Error updating notification settings: " . $stmt_upsert->error;
+            }
+            $stmt_upsert->close();
+        } else {
+            $error = "Error preparing notification settings update: " . $connection->error;
+        }
     }
 }
 ?>
@@ -415,54 +556,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
             
             <!-- Notifications Tab -->
             <div id="notifications-tab" class="settings-tab hidden">
-                <h2 class="text-xl font-bold mb-4">Notification Settings</h2>
+                <h2 class="text-xl font-bold mb-4">Notification Settings for "<?= htmlspecialchars($board_details['board_name']) ?>"</h2>
+                
+                <?php if ($notification_settings['source'] === 'global'): ?>
+                    <div class="mb-4 p-3 bg-blue-100 border-l-4 border-blue-500 text-blue-700">
+                        <p><i class="fas fa-info-circle mr-2"></i>Currently using your <strong_>global default notification preferences</strong> for this board. Changes saved here will become specific to "<?= htmlspecialchars($board_details['board_name']) ?>".</p>
+                    </div>
+                <?php elseif ($notification_settings['source'] === 'default' || $notification_settings['source'] === 'default_no_board'): ?>
+                    <div class="mb-4 p-3 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700">
+                        <p><i class="fas fa-info-circle mr-2"></i>Currently using <strong_>system default notification preferences</strong>. Changes saved here will become specific to "<?= htmlspecialchars($board_details['board_name']) ?>".</p>
+                    </div>
+                <?php endif; ?>
+
                 <?php if ($board_details['is_archived']): ?>
                     <div class="mb-4 p-3 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700">
                         <p><i class="fas fa-info-circle mr-2"></i>Notification settings are disabled for archived projects.</p>
                     </div>
                 <?php endif; ?>
+
                 <div class="<?= ($board_details['is_archived'] ?? 0) ? 'opacity-50 pointer-events-none' : '' ?>">
-                    <form method="post" action="project_settings.php?board_id=<?= $active_board_id ?>">
-                        <input type="hidden" name="update_notifications_settings" value="1"> <!-- Placeholder for actual handling -->
+                    <form method="post" action="project_settings.php?board_id=<?= $active_board_id ?>#notifications">
+                        
+                        <h3 class="font-semibold mb-3 text-lg">Notify me when:</h3>
+                        <p class="text-sm text-gray-600 mb-4">Select which activities on this board should trigger a notification for you.</p>
                         <div class="space-y-4">
+                            <?php
+                            // Re-using the map from your previous code
+                            $event_notifications_map = [
+                                'notify_task_created' => 'A new task is created on this board',
+                                'notify_task_assignment' => 'A task is assigned to me or I am @mentioned in a task',
+                                'notify_task_status_changed' => 'Status of my task or a task I follow changes',
+                                'notify_task_updated' => 'Details of my task or a task I follow are updated',
+                                'notify_new_comment' => "New comments on tasks I'm involved with or @mentioned in",
+                                'notify_deadline_reminder' => 'Reminders for my approaching task deadlines',
+                                'notify_collaborator_added' => 'A new collaborator joins this board',
+                                'notify_task_deleted' => 'A task is deleted from this board',
+                                'notify_new_chat_message' => 'New chat messages related to this board (if applicable)',
+                                'notify_column_changes' => 'Board structure changes (columns added/edited/deleted)',
+                                'notify_project_management' => 'Project management updates (e.g., invitations, board settings changes)',
+                            ];
+
+                            foreach ($event_notifications_map as $key => $label):
+                            ?>
                             <div class="flex items-center">
-                                <input type="checkbox" id="notify_task_assignment" name="notify_task_assignment" class="mr-3 h-5 w-5 text-[#e63946] focus:ring-[#e63946] border-gray-300 rounded" checked>
-                                <label for="notify_task_assignment" class="text-gray-700">New task assigned</label>
+                                <input type="checkbox" id="<?= $key ?>" name="<?= $key ?>" 
+                                       class="mr-3 h-5 w-5 text-[#e63946] focus:ring-[#e63946] border-gray-300 rounded"
+                                       <?= (isset($notification_settings[$key]) && $notification_settings[$key] == 1) ? 'checked' : '' ?>>
+                                <label for="<?= $key ?>" class="text-gray-700"><?= htmlspecialchars($label) ?></label>
                             </div>
-                            <div class="flex items-center">
-                                <input type="checkbox" id="notify_task_status" name="notify_task_status" class="mr-3 h-5 w-5 text-[#e63946] focus:ring-[#e63946] border-gray-300 rounded" checked>
-                                <label for="notify_task_status" class="text-gray-700">Task status changed</label>
-                            </div>
-                            <div class="flex items-center">
-                                <input type="checkbox" id="notify_comments" name="notify_comments" class="mr-3 h-5 w-5 text-[#e63946] focus:ring-[#e63946] border-gray-300 rounded" checked>
-                                <label for="notify_comments" class="text-gray-700">New comments</label>
-                            </div>
-                            <div class="flex items-center">
-                                <input type="checkbox" id="notify_deadline" name="notify_deadline" class="mr-3 h-5 w-5 text-[#e63946] focus:ring-[#e63946] border-gray-300 rounded" checked>
-                                <label for="notify_deadline" class="text-gray-700">Approaching deadline</label>
-                            </div>
-                            <div class="flex items-center">
-                                <input type="checkbox" id="notify_collaborator" name="notify_collaborator" class="mr-3 h-5 w-5 text-[#e63946] focus:ring-[#e63946] border-gray-300 rounded" checked>
-                                <label for="notify_collaborator" class="text-gray-700">New collaborator added</label>
-                            </div>
+                            <?php endforeach; ?>
                         </div>
                         
-                        <div class="mt-8">
-                            <h3 class="font-semibold mb-3 text-lg">Notification Channels</h3>
-                            <div class="space-y-4">
-                                <div class="flex items-center">
-                                    <input type="checkbox" id="channel_email" name="channel_email" class="mr-3 h-5 w-5 text-[#e63946] focus:ring-[#e63946] border-gray-300 rounded" checked>
-                                    <label for="channel_email" class="text-gray-700">Email</label>
-                                </div>
-                                <div class="flex items-center">
-                                    <input type="checkbox" id="channel_app" name="channel_app" class="mr-3 h-5 w-5 text-[#e63946] focus:ring-[#e63946] border-gray-300 rounded" checked>
-                                    <label for="channel_app" class="text-gray-700">In-app notifications</label>
-                                </div>
-                            </div>
-                        </div>
+                        <!-- REMOVED Notification Channels section -->
                         
                         <div class="flex justify-end mt-8">
-                            <button type="submit" name="update_notifications" class="bg-[#e63946] text-white px-6 py-2 rounded-lg hover:bg-red-700">
+                            <button type="submit" name="update_notification_settings_submit" class="bg-[#e63946] text-white px-6 py-2 rounded-lg hover:bg-red-700">
                                 Save Notification Settings
                             </button>
                         </div>
