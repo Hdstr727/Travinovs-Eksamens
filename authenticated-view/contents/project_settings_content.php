@@ -407,6 +407,76 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
             break; // Process only one danger zone action
         }
     }
+    
+    // --- HANDLE LEAVE PROJECT ---
+    if (isset($_POST['leave_project_submit'])) {
+        // Check if the current user is indeed a collaborator and not the owner
+        if ($current_user_permission_on_active_board && $current_user_permission_on_active_board !== 'owner') {
+            if (!($board_details['is_archived'] ?? 0)) { // Cannot leave an archived project via this UI maybe? Or allow? For now, disallow.
+                
+                // Get current user's username for logging
+                $stmt_leaver_username = $connection->prepare("SELECT username FROM Planotajs_Users WHERE user_id = ?");
+                $leaver_username = "User ID " . $user_id; // Fallback
+                if($stmt_leaver_username) {
+                    $stmt_leaver_username->bind_param("i", $user_id);
+                    $stmt_leaver_username->execute();
+                    $res_leaver = $stmt_leaver_username->get_result();
+                    if($row_leaver = $res_leaver->fetch_assoc()){
+                        $leaver_username = $row_leaver['username'];
+                    }
+                    $stmt_leaver_username->close();
+                }
+
+
+                $sql_leave = "DELETE FROM Planotajs_Collaborators WHERE board_id = ? AND user_id = ?";
+                $stmt_leave = $connection->prepare($sql_leave);
+                if ($stmt_leave) {
+                    $stmt_leave->bind_param("ii", $active_board_id, $user_id);
+                    if ($stmt_leave->execute()) {
+                        if ($stmt_leave->affected_rows > 0) {
+                            $message = "You have successfully left the project '" . htmlspecialchars($board_details['board_name']) . "'.";
+                            
+                            // Log this activity
+                            $activity_description = htmlspecialchars($leaver_username) . " left the project \"" . htmlspecialchars($board_details['board_name']) . "\".";
+                            // Notify owner and maybe admins
+                            $recipients = [$board_details['user_id']]; // Notify at least the owner
+                            // Optionally, get other admins if you want them notified too
+                            // $other_admins = get_board_admins($connection, $active_board_id, [$user_id, $board_details['user_id']]); // exclude self, exclude owner
+                            // $recipients = array_unique(array_merge($recipients, $other_admins));
+
+                            log_and_notify(
+                                $connection,
+                                $active_board_id,
+                                $user_id, // The user who performed the action (leaving)
+                                'collaborator_left', // New activity type
+                                $activity_description,
+                                $user_id, // related_entity_id can be the user_id who left
+                                'user',   // related_entity_type
+                                $recipients
+                            );
+
+                            $_SESSION['settings_message'] = $message;
+                            header("Location: project_settings.php"); // Redirect to the main settings page (no board_id, as they lost access)
+                            exit();
+                        } else {
+                            $error = "Could not leave the project. You might not have been a collaborator or an error occurred.";
+                        }
+                    } else {
+                        $error = "Error leaving project: " . $stmt_leave->error;
+                    }
+                    $stmt_leave->close();
+                } else {
+                    $error = "Error preparing to leave project: " . $connection->error;
+                }
+            } else {
+                $error = "Cannot leave an archived project.";
+            }
+        } else {
+            $error = "Only collaborators can leave a project. Owners must transfer ownership or delete the project.";
+        }
+        // If an error occurred during leave project, stay on the page with error
+        $redirect_to_hash = ($current_user_permission_on_active_board && $current_user_permission_on_active_board !== 'owner') ? "#general" : ""; // Or appropriate hash
+    }
 
     // After any POST action, store messages and redirect to show them and prevent re-submission
     $_SESSION['settings_message'] = $message;
@@ -501,6 +571,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
             <div id="general-tab" class="settings-tab">
                 <h2 class="text-xl font-bold mb-4">Project Settings for "<?= htmlspecialchars($board_details['board_name']) ?>"</h2>
                 <?php if ($board_details['is_archived']): ?><div class="mb-4 p-3 bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700"><p><i class="fas fa-archive mr-2"></i>This project is currently archived. Some functionalities might be limited.</p></div><?php endif; ?>
+                
                 <form method="post" action="project_settings.php?board_id=<?= $active_board_id ?>">
                     <?php $can_edit_general = ($current_user_permission_on_active_board == 'owner' || $current_user_permission_on_active_board == 'admin'); ?>
                     <div class="mb-4"><label for="board_name" class="block text-gray-700 font-medium mb-2">Project Name</label><input type="text" id="board_name" name="board_name" value="<?= htmlspecialchars($board_details['board_name'] ?? '') ?>" required <?= (!$can_edit_general || ($board_details['is_archived'] ?? 0)) ? 'disabled' : '' ?> class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#e63946] <?= (!$can_edit_general || ($board_details['is_archived'] ?? 0)) ? 'bg-gray-100 cursor-not-allowed' : '' ?>"></div>
@@ -510,6 +581,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
                     <div class="flex justify-end"><button type="submit" name="update_project" class="bg-[#e63946] text-white px-6 py-2 rounded-lg hover:bg-red-700">Save Changes</button></div>
                     <?php endif; ?>
                 </form>
+
+                <?php // --- LEAVE PROJECT BUTTON for Collaborators ---
+                if ($current_user_permission_on_active_board && $current_user_permission_on_active_board !== 'owner' && !($board_details['is_archived'] ?? 0) ): 
+                ?>
+                    <hr class="my-8 border-gray-300">
+                    <div class="mt-6 p-4 border border-orange-300 rounded-lg bg-orange-50">
+                        <h3 class="text-lg font-semibold mb-2 text-orange-700">Leave Project</h3>
+                        <p class="text-sm text-gray-600 mb-3">If you leave this project, you will lose access to its content and will need to be invited again to rejoin.</p>
+                        <form method="post" action="project_settings.php?board_id=<?= $active_board_id ?>" 
+                              onsubmit="return confirm('Are you sure you want to leave the project \"<?= htmlspecialchars($board_details['board_name']) ?>\"? You will lose access.');">
+                            <input type="hidden" name="action" value="leave_project">
+                            <button type="submit" name="leave_project_submit" class="bg-orange-500 text-white px-6 py-2 rounded-lg hover:bg-orange-600 transition-colors">
+                                <i class="fas fa-sign-out-alt mr-2"></i>Leave Project
+                            </button>
+                        </form>
+                    </div>
+                <?php endif; ?>
+
             </div>
             
             <!-- Collaborators Tab -->

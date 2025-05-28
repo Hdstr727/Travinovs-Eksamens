@@ -176,6 +176,7 @@ function log_and_notify(
         'comment_added'         => 'notify_new_comment',           // Alias
         'deadline_reminder'     => 'notify_deadline_reminder',
         'collaborator_added'    => 'notify_collaborator_added',    // User X joined board Y
+        'collaborator_left'     => 'notify_project_management',
         'invitation_sent'       => 'notify_project_management',    // For owner: an invite was sent for their board
         'invitation_accepted'   => 'notify_project_management',    // For owner: an invite was accepted for their board
         'invitation_declined'   => 'notify_project_management',    // For owner: an invite was declined
@@ -183,6 +184,7 @@ function log_and_notify(
         'column_updated'        => 'notify_column_changes',
         'column_deleted'        => 'notify_column_changes',
         'new_chat_message'      => 'notify_new_chat_message',
+        
         // Add more mappings as your activity_types evolve
     ];
 
