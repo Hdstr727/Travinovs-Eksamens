@@ -1,70 +1,76 @@
 <?php
-session_start(); // Start session for user login management
+// authenticated-view/core/login.php
+session_start(); 
 
 // Include the database connection
-require '../../admin/database/connection.php';
+require '../../admin/database/connection.php'; // Adjust path if necessary
 
-// Initialize an error message
 $error = "";
 
-// Check if the form is submitted
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    // Sanitize input to prevent XSS attacks
-    $username = htmlspecialchars($_POST['username']);
+    // Sanitize input
+    $login_identifier = htmlspecialchars(trim($_POST['login_identifier'])); // Can be username or email
     $password = $_POST['password'];
 
-    // Prepare a statement to securely fetch user data
-    $query = $connection->prepare("SELECT user_id, username, password, is_deleted FROM Planotajs_Users WHERE username = ? AND is_deleted = 0");
-    $query->bind_param("s", $username);
-    $query->execute();
-    $result = $query->get_result();
-
-    // Check if a user with the given username exists
-    if ($result->num_rows > 0) {
-        $user = $result->fetch_assoc();
-
-        // Verify the hashed password
-        if (password_verify($password, $user['password'])) {
-            // Set session variables
-            $_SESSION['user_id'] = $user['user_id'];
-            $_SESSION['username'] = $user['username'];
-
-            // Redirect to the main page
-            header("Location: ../index.php");
-            exit();
-        } else {
-            $error = "Incorrect username or password.";
-        }
+    if (empty($login_identifier) || empty($password)) {
+        $error = "Please enter both username/email and password.";
     } else {
-        $error = "Incorrect username or password.";
-    }
+        // Prepare a statement to fetch user data by username OR email
+        // Ensure `is_deleted = 0` is part of your user active check
+        $query = $connection->prepare("SELECT user_id, username, email, password, is_deleted 
+                                       FROM Planotajs_Users 
+                                       WHERE (username = ? OR email = ?) AND is_deleted = 0");
+        if ($query) {
+            $query->bind_param("ss", $login_identifier, $login_identifier);
+            $query->execute();
+            $result = $query->get_result();
 
-    // Close the prepared statement
-    $query->close();
+            if ($result->num_rows > 0) {
+                $user = $result->fetch_assoc();
+
+                if (password_verify($password, $user['password'])) {
+                    $_SESSION['user_id'] = $user['user_id'];
+                    $_SESSION['username'] = $user['username']; // Store the actual username
+
+                    header("Location: ../index.php"); // Redirect to the dashboard
+                    exit();
+                } else {
+                    $error = "Incorrect username/email or password.";
+                }
+            } else {
+                $error = "Incorrect username/email or password.";
+            }
+            $query->close();
+        } else {
+            $error = "Database query error. Please try again later.";
+            // Log the actual DB error for administrators
+            error_log("Login query preparation error: " . $connection->error);
+        }
+    }
 } 
 
-// Close the database connection
-$connection->close();
+// $connection->close(); // Usually closed at the end of the script or handled by PHP's lifecycle
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login</title>
+    <title>Login - Planotajs</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="../css/dark-theme.css">
+    <link rel="stylesheet" href="../css/dark-theme.css"> <!-- Adjust path if needed -->
 </head>
 <body class="flex items-center justify-center min-h-screen bg-gray-100">
     <div class="w-full max-w-md p-8 bg-white rounded-lg shadow-md text-center">
-        <h2 class="text-2xl font-bold text-[#e63946] mb-4">Login to the System</h2>
+        <h2 class="text-2xl font-bold text-[#e63946] mb-4">Login to Planotajs</h2>
         
         <?php if ($error): ?>
             <p class="text-sm font-semibold text-red-600 mb-4"><?php echo $error; ?></p>
         <?php endif; ?>
 
-        <form method="POST" action="" class="flex flex-col gap-4">
-            <input type="text" name="username" placeholder="Username" required
+        <form method="POST" action="login.php" class="flex flex-col gap-4"> <!-- Action to self -->
+            <input type="text" name="login_identifier" placeholder="Username or Email" required
+                value="<?= isset($login_identifier) ? htmlspecialchars($login_identifier) : '' ?>"
                 class="w-full p-3 text-lg border-2 border-[#e63946] rounded-md outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-300">
             <input type="password" name="password" placeholder="Password" required
                 class="w-full p-3 text-lg border-2 border-[#e63946] rounded-md outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-300">
