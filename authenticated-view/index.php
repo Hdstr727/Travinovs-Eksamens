@@ -136,11 +136,12 @@ if ($stmt_count_notif) {
     $stmt_count_notif->close();
 } else { error_log("Failed to prepare statement for unread notifications count: " . $connection->error);}
 
-// --- Fetch Recent Activities for Dashboard ---
+// --- Fetch Recent Activities for Dashboard (Actions by OTHERS on user's relevant boards) ---
 $recent_activities = [];
-$limit_recent_activities = 10; // Changed to 10 as requested
+$limit_recent_activities = 10; 
 
 $accessible_board_ids = [];
+// $board_access_subquery is already defined earlier and correctly lists boards the user has access to
 $stmt_accessible_boards = $connection->prepare($board_access_subquery);
 if ($stmt_accessible_boards) {
     $stmt_accessible_boards->bind_param("ii", $user_id, $user_id);
@@ -155,25 +156,29 @@ if ($stmt_accessible_boards) {
 }
 
 if (!empty($accessible_board_ids)) {
-    // Ensure Planotajs_ActivityLog table exists
     $sql_create_activity_table_dashboard = "CREATE TABLE IF NOT EXISTS Planotajs_ActivityLog (activity_id INT AUTO_INCREMENT PRIMARY KEY, board_id INT NOT NULL, user_id INT NOT NULL, activity_type VARCHAR(50) NOT NULL, activity_description TEXT NOT NULL, related_entity_id INT NULL, related_entity_type VARCHAR(50) NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (board_id) REFERENCES Planotajs_Boards(board_id) ON DELETE CASCADE, FOREIGN KEY (user_id) REFERENCES Planotajs_Users(user_id) ON DELETE CASCADE)";
     $connection->query($sql_create_activity_table_dashboard);
 
     $board_ids_placeholders_recent = implode(',', array_fill(0, count($accessible_board_ids), '?'));
-    $types_recent = str_repeat('i', count($accessible_board_ids));
+    
+    // Prepare types and params for binding
+    // One 'i' for each board_id, then one 'i' for the logged-in user_id (for exclusion), then one 'i' for LIMIT
+    $types_recent = str_repeat('i', count($accessible_board_ids)) . 'i' . 'i'; 
     $params_recent = $accessible_board_ids;
+    $params_recent[] = $user_id; // Add logged-in user_id for the exclusion condition
+    $params_recent[] = $limit_recent_activities;
 
+    // Modified SQL query:
+    // Added "AND al.user_id != ?" to exclude activities by the logged-in user
     $sql_recent_activities = "SELECT al.*, u.username as actor_username, b.board_name 
                               FROM Planotajs_ActivityLog al
                               JOIN Planotajs_Users u ON al.user_id = u.user_id
                               JOIN Planotajs_Boards b ON al.board_id = b.board_id
                               WHERE al.board_id IN ({$board_ids_placeholders_recent})
+                              AND al.user_id != ?  -- Exclude activities performed by the logged-in user
                               ORDER BY al.created_at DESC
                               LIMIT ?";
     
-    $types_recent .= 'i'; 
-    $params_recent[] = $limit_recent_activities;
-
     $stmt_recent_activities = $connection->prepare($sql_recent_activities);
     if ($stmt_recent_activities) {
         $stmt_recent_activities->bind_param($types_recent, ...$params_recent);
