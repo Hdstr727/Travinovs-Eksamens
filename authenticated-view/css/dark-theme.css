@@ -387,3 +387,8 @@ html.dark-mode {
 /* If bg-red-50 is meant to be a very light red, we need a new rule: */
 .dark-mode .bg-red-50 { background-color: rgba(200, 40, 40, 0.2) !important; } /* Example: very subtle dark red */
 
+/* --- DASHBOARD RECENT ACTIVITY ITEM HOVER (Dark Mode) --- */
+.dark-mode .card .p-2\.5.hover\:bg-gray-50:hover { /* Targeting the specific activity item structure */
+    background-color: #2E2F45 !important; /* A slightly darker shade than your .dark-mode .bg-gray-50 for hover */
+                                         /* Or choose another subtle dark hover color, e.g., #34354A */
+}

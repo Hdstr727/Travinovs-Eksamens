@@ -134,7 +134,59 @@ if ($stmt_count_notif) {
     $count_result_notif = $stmt_count_notif->get_result()->fetch_assoc();
     if ($count_result_notif) { $unread_notifications_count = $count_result_notif['count']; }
     $stmt_count_notif->close();
-} else { error_log("Failed to prepare statement for unread notifications count: " . $connection->error); }
+} else { error_log("Failed to prepare statement for unread notifications count: " . $connection->error);}
+
+// --- Fetch Recent Activities for Dashboard ---
+$recent_activities = [];
+$limit_recent_activities = 10; // Changed to 10 as requested
+
+$accessible_board_ids = [];
+$stmt_accessible_boards = $connection->prepare($board_access_subquery);
+if ($stmt_accessible_boards) {
+    $stmt_accessible_boards->bind_param("ii", $user_id, $user_id);
+    $stmt_accessible_boards->execute();
+    $result_accessible_boards = $stmt_accessible_boards->get_result();
+    while ($row_board_id = $result_accessible_boards->fetch_assoc()) {
+        $accessible_board_ids[] = $row_board_id['board_id'];
+    }
+    $stmt_accessible_boards->close();
+} else {
+    error_log("Dashboard: Failed to prepare statement for accessible board IDs in recent activity: " . $connection->error);
+}
+
+if (!empty($accessible_board_ids)) {
+    // Ensure Planotajs_ActivityLog table exists
+    $sql_create_activity_table_dashboard = "CREATE TABLE IF NOT EXISTS Planotajs_ActivityLog (activity_id INT AUTO_INCREMENT PRIMARY KEY, board_id INT NOT NULL, user_id INT NOT NULL, activity_type VARCHAR(50) NOT NULL, activity_description TEXT NOT NULL, related_entity_id INT NULL, related_entity_type VARCHAR(50) NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (board_id) REFERENCES Planotajs_Boards(board_id) ON DELETE CASCADE, FOREIGN KEY (user_id) REFERENCES Planotajs_Users(user_id) ON DELETE CASCADE)";
+    $connection->query($sql_create_activity_table_dashboard);
+
+    $board_ids_placeholders_recent = implode(',', array_fill(0, count($accessible_board_ids), '?'));
+    $types_recent = str_repeat('i', count($accessible_board_ids));
+    $params_recent = $accessible_board_ids;
+
+    $sql_recent_activities = "SELECT al.*, u.username as actor_username, b.board_name 
+                              FROM Planotajs_ActivityLog al
+                              JOIN Planotajs_Users u ON al.user_id = u.user_id
+                              JOIN Planotajs_Boards b ON al.board_id = b.board_id
+                              WHERE al.board_id IN ({$board_ids_placeholders_recent})
+                              ORDER BY al.created_at DESC
+                              LIMIT ?";
+    
+    $types_recent .= 'i'; 
+    $params_recent[] = $limit_recent_activities;
+
+    $stmt_recent_activities = $connection->prepare($sql_recent_activities);
+    if ($stmt_recent_activities) {
+        $stmt_recent_activities->bind_param($types_recent, ...$params_recent);
+        $stmt_recent_activities->execute();
+        $result_recent_activities = $stmt_recent_activities->get_result();
+        while ($activity_item_recent = $result_recent_activities->fetch_assoc()) {
+            $recent_activities[] = $activity_item_recent;
+        }
+        $stmt_recent_activities->close();
+    } else {
+        error_log("Dashboard: Failed to prepare statement for recent activities: " . $connection->error);
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -143,7 +195,7 @@ if ($stmt_count_notif) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Planotajs</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Path relative to authenticated-view/index.php -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <link rel="stylesheet" href="css/dark-theme.css"> 
     <style>
         .hover-scale { transition: transform 0.2s ease; }
@@ -269,9 +321,73 @@ if ($stmt_count_notif) {
             </div>
         </div>
 
-         <div class="mb-8">
-            <h3 class="text-xl font-semibold text-gray-700 mb-4">Recent Activity</h3>
-            <div class="bg-white p-6 rounded-lg shadow-md card"><div class="space-y-4"><p class="text-sm text-gray-500">No recent activity to display.</p></div></div>
+        <div class="mb-8">
+            <h3 class="text-xl font-semibold text-gray-700 mb-4">Recent Activity (Last <?= $limit_recent_activities ?> items)</h3>
+            <div class="bg-white p-6 rounded-lg shadow-md card">
+                <div class="space-y-1"> 
+                    <?php if (empty($recent_activities)): ?>
+                        <p class="text-sm text-gray-500">No recent activity to display across your accessible projects.</p>
+                    <?php else: ?>
+                        <?php foreach ($recent_activities as $activity_item_recent_loop): ?>
+                            <?php
+                                $icon_class = 'fas fa-info-circle text-blue-500'; 
+                                $activity_type_key = strtolower($activity_item_recent_loop['activity_type']);
+                                $icon_map = [ 
+                                    'task_created' => 'fas fa-plus-circle text-green-500', 'task_updated' => 'fas fa-edit text-blue-500', 
+                                    'task_deleted' => 'fas fa-trash-alt text-red-500', 'task_moved' => 'fas fa-arrows-alt text-indigo-500', 
+                                    'task_completed' => 'fas fa-check-circle text-green-600', 'task_reopened'  => 'fas fa-undo text-yellow-500', 
+                                    'comment_added'  => 'fas fa-comment text-gray-500', 'collaborator_added' => 'fas fa-user-plus text-purple-500', 
+                                    'collaborator_removed' => 'fas fa-user-minus text-orange-500', 
+                                    'collaborator_left' => 'fas fa-sign-out-alt text-orange-600',
+                                    'collaborator_permission_changed' => 'fas fa-user-shield text-teal-500', 
+                                    'settings_updated' => 'fas fa-cog text-gray-600', 'board_created' => 'fas fa-chalkboard text-pink-500', 
+                                    'project_archived' => 'fas fa-archive text-yellow-600', 'project_unarchived' => 'fas fa-undo text-green-600', 
+                                    'project_deleted' => 'fas fa-trash-alt text-red-700',
+                                    'invitation_sent' => 'fas fa-paper-plane text-blue-500',
+                                    'invitation_accepted' => 'fas fa-user-check text-green-500',
+                                    'invitation_declined' => 'fas fa-user-times text-red-500',
+                                    'invitation_cancelled' => 'fas fa-ban text-orange-500'
+                                ];
+                                if (array_key_exists($activity_type_key, $icon_map)) { 
+                                    $icon_class = $icon_map[$activity_type_key]; 
+                                }
+                                $activity_date = new DateTime($activity_item_recent_loop['created_at'], new DateTimeZone('UTC')); 
+                                $activity_date->setTimezone(new DateTimeZone(date_default_timezone_get())); 
+                                $formatted_date = $activity_date->format('M d, H:i');
+
+                                $activity_link = "project_settings.php?board_id=" . $activity_item_recent_loop['board_id'] . "#activity"; 
+                                if ($activity_item_recent_loop['related_entity_type'] == 'task' && $activity_item_recent_loop['related_entity_id']) {
+                                    $activity_link = "kanban.php?board_id=" . $activity_item_recent_loop['board_id'] . "&task_id=" . $activity_item_recent_loop['related_entity_id'];
+                                }
+                            ?>
+                            <div class="p-2.5 hover:bg-gray-50 flex items-start border-b border-gray-200 last:border-b-0">
+                                <div class="mr-3 mt-1 flex-shrink-0 activity-item-icon">
+                                    <i class="<?= $icon_class ?> text-base"></i>
+                                </div>
+                                <div class="flex-grow text-sm">
+                                    <div class="flex justify-between items-baseline">
+                                        <div>
+                                            <span class="font-semibold text-gray-800"><?= htmlspecialchars($activity_item_recent_loop['actor_username']) ?></span>
+                                            <span class="text-gray-600 ml-1"><?= htmlspecialchars($activity_item_recent_loop['activity_description']) ?></span>
+                                        </div>
+                                        <div class="text-xs text-gray-400 whitespace-nowrap ml-2 "><?= $formatted_date ?></div>
+                                    </div>
+                                    <div class="text-xs text-gray-500 mt-0.5">
+                                        On project: 
+                                        <a href="project_settings.php?board_id=<?= $activity_item_recent_loop['board_id'] ?>" class="text-blue-600 hover:underline">
+                                            <?= htmlspecialchars($activity_item_recent_loop['board_name']) ?>
+                                        </a>
+                                        <?php if ($activity_item_recent_loop['related_entity_type'] == 'task' && $activity_item_recent_loop['related_entity_id']): ?>
+                                            | <a href="<?= htmlspecialchars($activity_link) ?>" class="text-blue-600 hover:underline">View Task</a>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                        <?php /* Removed the "View all activity..." link as per request */ ?>
+                    <?php endif; ?>
+                </div>
+            </div>
         </div>
 
         <div class="text-center text-gray-600 mt-8">
