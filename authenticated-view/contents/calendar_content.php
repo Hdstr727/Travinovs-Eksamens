@@ -124,8 +124,8 @@ $nav_today_params = http_build_query($nav_today_params_array);
 
 // --- SQL Query to fetch tasks (common for all views) ---
 $sql = "SELECT t.*, b.board_name 
-        FROM Planotajs_Tasks t 
-        LEFT JOIN Planotajs_Boards b ON t.board_id = b.board_id 
+        FROM Planner_Tasks t 
+        LEFT JOIN Planner_Boards b ON t.board_id = b.board_id 
         WHERE DATE(t.due_date) BETWEEN ? AND ? 
         AND t.is_deleted = 0";
 $stmt = $connection->prepare($sql);

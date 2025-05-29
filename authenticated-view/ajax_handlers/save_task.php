@@ -23,9 +23,9 @@ $task_description = isset($_POST['task_description']) ? trim($_POST['task_descri
 $due_date = !empty($_POST['due_date']) ? $_POST['due_date'] : null;
 $priority = isset($_POST['priority']) && in_array($_POST['priority'], ['low', 'medium', 'high']) ? $_POST['priority'] : 'medium';
 
-$perm_check_sql = "SELECT b.board_id FROM Planotajs_Boards b
-                   JOIN Planotajs_Columns pc ON b.board_id = pc.board_id
-                   LEFT JOIN Planotajs_Collaborators c ON b.board_id = c.board_id AND c.user_id = ?
+$perm_check_sql = "SELECT b.board_id FROM Planner_Boards b
+                   JOIN Planner_Columns pc ON b.board_id = pc.board_id
+                   LEFT JOIN Planner_Collaborators c ON b.board_id = c.board_id AND c.user_id = ?
                    WHERE b.board_id = ? AND pc.column_id = ? AND pc.is_deleted = 0 AND b.is_deleted = 0
                    AND (b.user_id = ? OR c.permission_level IN ('edit', 'admin'))";
 $perm_stmt = $connection->prepare($perm_check_sql);
@@ -48,7 +48,7 @@ $saved_task_id = null;
 
 if ($task_id) { // Editing existing task
     $activity_type = 'task_updated';
-    $update_sql = "UPDATE Planotajs_Tasks SET
+    $update_sql = "UPDATE Planner_Tasks SET
                   task_name = ?, task_description = ?, column_id = ?, due_date = ?, priority = ?
                   WHERE task_id = ? AND board_id = ? AND is_deleted = 0";
     $update_stmt = $connection->prepare($update_sql);
@@ -68,7 +68,7 @@ if ($task_id) { // Editing existing task
     $update_stmt->close();
 } else { // Creating new task
     $activity_type = 'task_created';
-    $order_sql = "SELECT MAX(task_order) as max_order FROM Planotajs_Tasks
+    $order_sql = "SELECT MAX(task_order) as max_order FROM Planner_Tasks
                   WHERE board_id = ? AND column_id = ? AND is_deleted = 0";
     $order_stmt = $connection->prepare($order_sql);
     $order_stmt->bind_param("ii", $board_id, $column_id);
@@ -78,7 +78,7 @@ if ($task_id) { // Editing existing task
     $task_order = ($order_row['max_order'] !== null) ? $order_row['max_order'] + 1 : 0;
     $order_stmt->close();
 
-    $insert_sql = "INSERT INTO Planotajs_Tasks
+    $insert_sql = "INSERT INTO Planner_Tasks
                   (board_id, task_name, task_description, column_id, task_order, due_date, priority, created_by_user_id)
                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)"; // Added created_by_user_id
     $insert_stmt = $connection->prepare($insert_sql);

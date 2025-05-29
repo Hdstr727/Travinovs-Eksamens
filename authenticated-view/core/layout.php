@@ -26,7 +26,7 @@ require_once $project_root . '/admin/database/connection.php';
 
 // Get user info from database including profile picture
 $user_id = $_SESSION['user_id'];
-$sql = "SELECT username, profile_picture FROM Planotajs_Users WHERE user_id = ?";
+$sql = "SELECT username, profile_picture FROM Planner_Users WHERE user_id = ?";
 $stmt = $connection->prepare($sql);
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
@@ -58,7 +58,7 @@ if (isset($_SESSION['last_board_id'])) {
 // Get unread notifications count
 $unread_notifications_count = 0;
 if (isset($connection)) {
-    $stmt_count_notif = $connection->prepare("SELECT COUNT(*) as count FROM Planotajs_Notifications WHERE user_id = ? AND is_read = 0");
+    $stmt_count_notif = $connection->prepare("SELECT COUNT(*) as count FROM Planner_Notifications WHERE user_id = ? AND is_read = 0");
     if ($stmt_count_notif) {
         $stmt_count_notif->bind_param("i", $user_id);
         $stmt_count_notif->execute();

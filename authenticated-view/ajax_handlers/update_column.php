@@ -26,7 +26,7 @@ if (empty($new_column_name)) {
 
 // Fetch old column name for logging
 $old_column_name = "a column";
-$stmt_old_name = $connection->prepare("SELECT column_name FROM Planotajs_Columns WHERE column_id = ? AND board_id = ?");
+$stmt_old_name = $connection->prepare("SELECT column_name FROM Planner_Columns WHERE column_id = ? AND board_id = ?");
 if($stmt_old_name){
     $stmt_old_name->bind_param("ii", $column_id, $board_id);
     $stmt_old_name->execute();
@@ -38,9 +38,9 @@ if($stmt_old_name){
 }
 
 
-$perm_check_sql = "SELECT pc.column_id FROM Planotajs_Columns pc
-                   JOIN Planotajs_Boards b ON pc.board_id = b.board_id
-                   LEFT JOIN Planotajs_Collaborators c ON b.board_id = c.board_id AND c.user_id = ?
+$perm_check_sql = "SELECT pc.column_id FROM Planner_Columns pc
+                   JOIN Planner_Boards b ON pc.board_id = b.board_id
+                   LEFT JOIN Planner_Collaborators c ON b.board_id = c.board_id AND c.user_id = ?
                    WHERE pc.column_id = ? AND pc.board_id = ? AND (b.user_id = ? OR c.permission_level IN ('edit', 'admin'))
                    AND pc.is_deleted = 0";
 $perm_stmt = $connection->prepare($perm_check_sql);
@@ -55,7 +55,7 @@ if ($perm_result->num_rows === 0) {
 }
 $perm_stmt->close(); 
 
-$sql = "UPDATE Planotajs_Columns SET column_name = ? WHERE column_id = ? AND board_id = ?";
+$sql = "UPDATE Planner_Columns SET column_name = ? WHERE column_id = ? AND board_id = ?";
 $stmt = $connection->prepare($sql);
 $stmt->bind_param("sii", $new_column_name, $column_id, $board_id);
 
@@ -69,7 +69,7 @@ if ($stmt->execute()) {
         $recipients = get_board_associated_user_ids($connection, $board_id);
         // Fetch column identifier for link
         $col_identifier = "unknown-col";
-        $stmt_col_ident = $connection->prepare("SELECT column_identifier FROM Planotajs_Columns WHERE column_id = ?");
+        $stmt_col_ident = $connection->prepare("SELECT column_identifier FROM Planner_Columns WHERE column_id = ?");
         if($stmt_col_ident){
             $stmt_col_ident->bind_param("i", $column_id);
             $stmt_col_ident->execute();

@@ -21,8 +21,8 @@ $task_id = (int)$_GET['task_id'];
 
 // Fixed SQL query to remove board_color
 $sql = "SELECT t.*, b.board_name 
-        FROM Planotajs_Tasks t 
-        LEFT JOIN Planotajs_Boards b ON t.board_id = b.board_id 
+        FROM Planner_Tasks t 
+        LEFT JOIN Planner_Boards b ON t.board_id = b.board_id 
         WHERE t.task_id = ? AND t.is_deleted = 0";
 $stmt = $connection->prepare($sql);
 $stmt->bind_param("i", $task_id);

@@ -19,7 +19,7 @@ $sql = "SELECT notification_id, message, link, is_read,
                activity_id,       -- Keep if used for other notification types
                related_entity_id, -- <<< ADD THIS
                related_entity_type  -- <<< ADD THIS
-        FROM Planotajs_Notifications
+        FROM Planner_Notifications
         WHERE user_id = ?
         ORDER BY created_at DESC
         LIMIT ?";
@@ -48,7 +48,7 @@ $stmt->close();
 
 // Get unread count
 $unread_count = 0; // Default
-$unread_count_sql = "SELECT COUNT(*) as count FROM Planotajs_Notifications WHERE user_id = ? AND is_read = 0";
+$unread_count_sql = "SELECT COUNT(*) as count FROM Planner_Notifications WHERE user_id = ? AND is_read = 0";
 $stmt_count = $connection->prepare($unread_count_sql);
 if($stmt_count){
     $stmt_count->bind_param("i", $user_id);

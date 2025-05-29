@@ -21,7 +21,7 @@ $board_id = intval($_POST['board_id']);
 
 // Fetch task name BEFORE deleting for notification message
 $task_name_for_log = "a task";
-$stmt_task_name = $connection->prepare("SELECT task_name FROM Planotajs_Tasks WHERE task_id = ? AND board_id = ?");
+$stmt_task_name = $connection->prepare("SELECT task_name FROM Planner_Tasks WHERE task_id = ? AND board_id = ?");
 if ($stmt_task_name) {
     $stmt_task_name->bind_param("ii", $task_id, $board_id);
     $stmt_task_name->execute();
@@ -33,9 +33,9 @@ if ($stmt_task_name) {
 }
 
 $check_sql = "SELECT t.task_id
-              FROM Planotajs_Tasks t
-              JOIN Planotajs_Boards b ON t.board_id = b.board_id
-              LEFT JOIN Planotajs_Collaborators collab ON b.board_id = collab.board_id AND collab.user_id = ?
+              FROM Planner_Tasks t
+              JOIN Planner_Boards b ON t.board_id = b.board_id
+              LEFT JOIN Planner_Collaborators collab ON b.board_id = collab.board_id AND collab.user_id = ?
               WHERE t.task_id = ? AND t.board_id = ? AND t.is_deleted = 0
               AND (b.user_id = ? OR collab.permission_level IN ('edit', 'admin'))";
 $check_stmt = $connection->prepare($check_sql);
@@ -50,7 +50,7 @@ if ($check_result->num_rows === 0) {
 }
 $check_stmt->close(); 
 
-$delete_sql = "UPDATE Planotajs_Tasks SET is_deleted = 1 WHERE task_id = ? AND board_id = ?";
+$delete_sql = "UPDATE Planner_Tasks SET is_deleted = 1 WHERE task_id = ? AND board_id = ?";
 $delete_stmt = $connection->prepare($delete_sql);
 $delete_stmt->bind_param("ii", $task_id, $board_id);
 

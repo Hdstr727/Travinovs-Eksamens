@@ -21,7 +21,7 @@ if ($invitation_id <= 0) {
 $connection->begin_transaction();
 try {
     $fetch_invite_sql = "SELECT board_id, inviter_user_id, invited_user_id 
-                         FROM Planotajs_Invitations 
+                         FROM Planner_Invitations 
                          WHERE invitation_id = ? AND status = 'pending'";
     $stmt_fetch = $connection->prepare($fetch_invite_sql);
     if (!$stmt_fetch) throw new Exception("DB Error (fi_prep_dec): " . $connection->error);
@@ -41,7 +41,7 @@ try {
     $board_id = $invite_data['board_id'];
     $inviter_user_id = $invite_data['inviter_user_id'];
 
-    $update_invite_sql = "UPDATE Planotajs_Invitations SET status = 'declined', updated_at = CURRENT_TIMESTAMP WHERE invitation_id = ?";
+    $update_invite_sql = "UPDATE Planner_Invitations SET status = 'declined', updated_at = CURRENT_TIMESTAMP WHERE invitation_id = ?";
     $stmt_update_invite = $connection->prepare($update_invite_sql);
     if (!$stmt_update_invite) throw new Exception("DB Error (ui_prep_dec): " . $connection->error);
     $stmt_update_invite->bind_param("i", $invitation_id);
@@ -51,7 +51,7 @@ try {
     $stmt_update_invite->close();
 
     // Mark the original invitation notification as read
-    $mark_notif_read_sql = "UPDATE Planotajs_Notifications SET is_read = 1 WHERE user_id = ? AND type = 'invitation' AND related_entity_type = 'invitation' AND related_entity_id = ?";
+    $mark_notif_read_sql = "UPDATE Planner_Notifications SET is_read = 1 WHERE user_id = ? AND type = 'invitation' AND related_entity_type = 'invitation' AND related_entity_id = ?";
     $stmt_mark_read = $connection->prepare($mark_notif_read_sql);
     if ($stmt_mark_read) {
         $stmt_mark_read->bind_param("ii", $current_user_id, $invitation_id);
@@ -72,7 +72,7 @@ try {
     $inviter_notification_desc = htmlspecialchars($board_actor_info['actor_username']) . " declined your invitation to join project \"" . htmlspecialchars($board_actor_info['board_name']) . "\".";
     // SQL has 4 placeholders: user_id, board_id, message, related_entity_id
     // 'info' and 'invitation_response' are hardcoded in the SQL.
-    $stmt_notify_inviter = $connection->prepare("INSERT INTO Planotajs_Notifications (user_id, board_id, message, type, related_entity_id, related_entity_type) VALUES (?, ?, ?, 'info', ?, 'invitation_response')");
+    $stmt_notify_inviter = $connection->prepare("INSERT INTO Planner_Notifications (user_id, board_id, message, type, related_entity_id, related_entity_type) VALUES (?, ?, ?, 'info', ?, 'invitation_response')");
     if($stmt_notify_inviter){
         // Corrected bind_param: i (user_id), i (board_id), s (message), i (related_entity_id)
         $stmt_notify_inviter->bind_param("iisi", $inviter_user_id, $board_id, $inviter_notification_desc, $invitation_id);

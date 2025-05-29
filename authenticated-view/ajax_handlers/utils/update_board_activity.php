@@ -18,7 +18,7 @@ if (!function_exists('update_board_last_activity_timestamp')) {
             return false;
         }
 
-        $sql = "UPDATE Planotajs_Boards SET updated_at = CURRENT_TIMESTAMP WHERE board_id = ?";
+        $sql = "UPDATE Planner_Boards SET updated_at = CURRENT_TIMESTAMP WHERE board_id = ?";
         $stmt = $connection->prepare($sql);
 
         if ($stmt) {

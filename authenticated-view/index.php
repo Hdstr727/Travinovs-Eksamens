@@ -25,7 +25,7 @@ if (!$show_archived) {
 }
 
 // Get user info
-$sql_user = "SELECT username, profile_picture FROM Planotajs_Users WHERE user_id = ?";
+$sql_user = "SELECT username, profile_picture FROM Planner_Users WHERE user_id = ?";
 $stmt_user = $connection->prepare($sql_user);
 $stmt_user->bind_param("i", $user_id);
 $stmt_user->execute();
@@ -35,8 +35,8 @@ $stmt_user->close();
 
 // Get board count (respecting archive filter)
 $board_count_sql = "SELECT COUNT(DISTINCT b.board_id) as count
-                    FROM Planotajs_Boards b
-                    LEFT JOIN Planotajs_Collaborators c ON b.board_id = c.board_id AND c.user_id = ?
+                    FROM Planner_Boards b
+                    LEFT JOIN Planner_Collaborators c ON b.board_id = c.board_id AND c.user_id = ?
                     WHERE b.is_deleted = 0 " . $archived_filter_aliased_b_table . "
                     AND (b.user_id = ? OR c.user_id = ?)";
 $board_stmt = $connection->prepare($board_count_sql);
@@ -48,8 +48,8 @@ $board_stmt->close();
 
 // Get count of tasks created by the logged-in user
 $my_tasks_created_sql = "SELECT COUNT(t.task_id) as count
-                         FROM Planotajs_Tasks t
-                         JOIN Planotajs_Boards b ON t.board_id = b.board_id
+                         FROM Planner_Tasks t
+                         JOIN Planner_Boards b ON t.board_id = b.board_id
                          WHERE b.user_id = ? AND t.is_deleted = 0 AND b.is_deleted = 0" . $archived_filter_aliased_b_table;
 $my_tasks_stmt = $connection->prepare($my_tasks_created_sql);
 $my_tasks_stmt->bind_param("i", $user_id);
@@ -68,12 +68,12 @@ if (!$show_archived) {
     $board_access_subquery_archived_filter_collab_alias = " AND b_collab.is_archived = 0";
 }
 $board_access_subquery = "
-    SELECT board_id FROM Planotajs_Boards WHERE user_id = ? AND is_deleted = 0 {$board_access_subquery_archived_filter_direct}
+    SELECT board_id FROM Planner_Boards WHERE user_id = ? AND is_deleted = 0 {$board_access_subquery_archived_filter_direct}
     UNION
-    SELECT c.board_id FROM Planotajs_Collaborators c JOIN Planotajs_Boards b_collab ON c.board_id = b_collab.board_id WHERE c.user_id = ? AND b_collab.is_deleted = 0 {$board_access_subquery_archived_filter_collab_alias}
+    SELECT c.board_id FROM Planner_Collaborators c JOIN Planner_Boards b_collab ON c.board_id = b_collab.board_id WHERE c.user_id = ? AND b_collab.is_deleted = 0 {$board_access_subquery_archived_filter_collab_alias}
 ";
 $total_upcoming_deadlines_count = 0;
-$count_deadlines_sql = "SELECT COUNT(DISTINCT t.task_id) as count FROM Planotajs_Tasks t JOIN Planotajs_Boards b_main ON t.board_id = b_main.board_id WHERE t.is_deleted = 0 AND t.is_completed = 0 AND b_main.is_deleted = 0 " . ($show_archived ? "" : "AND b_main.is_archived = 0") . " AND DATE(t.due_date) BETWEEN ? AND ? AND t.board_id IN ({$board_access_subquery})";
+$count_deadlines_sql = "SELECT COUNT(DISTINCT t.task_id) as count FROM Planner_Tasks t JOIN Planner_Boards b_main ON t.board_id = b_main.board_id WHERE t.is_deleted = 0 AND t.is_completed = 0 AND b_main.is_deleted = 0 " . ($show_archived ? "" : "AND b_main.is_archived = 0") . " AND DATE(t.due_date) BETWEEN ? AND ? AND t.board_id IN ({$board_access_subquery})";
 $count_deadlines_stmt = $connection->prepare($count_deadlines_sql);
 if ($count_deadlines_stmt) {
     $count_deadlines_stmt->bind_param("ssii", $today, $seven_days_later, $user_id, $user_id); $count_deadlines_stmt->execute();
@@ -83,7 +83,7 @@ if ($count_deadlines_stmt) {
 } else { error_log("Failed to prepare statement for total upcoming deadlines count: " . $connection->error); }
 
 $upcoming_tasks_details = [];
-$details_deadlines_sql = "SELECT t.task_id, t.task_name, t.due_date, t.board_id, b.board_name, b.is_archived as board_is_archived FROM Planotajs_Tasks t JOIN Planotajs_Boards b ON t.board_id = b.board_id WHERE t.is_deleted = 0 AND t.is_completed = 0 AND b.is_deleted = 0 " . ($show_archived ? "" : "AND b.is_archived = 0") . " AND DATE(t.due_date) BETWEEN ? AND ? AND t.board_id IN ({$board_access_subquery}) ORDER BY t.due_date ASC, CASE t.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END ASC LIMIT 5";
+$details_deadlines_sql = "SELECT t.task_id, t.task_name, t.due_date, t.board_id, b.board_name, b.is_archived as board_is_archived FROM Planner_Tasks t JOIN Planner_Boards b ON t.board_id = b.board_id WHERE t.is_deleted = 0 AND t.is_completed = 0 AND b.is_deleted = 0 " . ($show_archived ? "" : "AND b.is_archived = 0") . " AND DATE(t.due_date) BETWEEN ? AND ? AND t.board_id IN ({$board_access_subquery}) ORDER BY t.due_date ASC, CASE t.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END ASC LIMIT 5";
 $details_deadlines_stmt = $connection->prepare($details_deadlines_sql);
 if ($details_deadlines_stmt) {
     $details_deadlines_stmt->bind_param("ssii", $today, $seven_days_later, $user_id, $user_id); $details_deadlines_stmt->execute();
@@ -104,7 +104,7 @@ $hour = date('H');
 if ($hour < 12) { $greeting = "Good Morning"; } elseif ($hour < 18) { $greeting = "Good Afternoon"; } else { $greeting = "Good Evening"; }
 
 $boards_data_for_php = [];
-$own_boards_sql = "SELECT board_id, board_name, board_type, updated_at, is_archived, 'owner' as access_type FROM Planotajs_Boards WHERE user_id = ? AND is_deleted = 0" . $archived_filter_boards_table;
+$own_boards_sql = "SELECT board_id, board_name, board_type, updated_at, is_archived, 'owner' as access_type FROM Planner_Boards WHERE user_id = ? AND is_deleted = 0" . $archived_filter_boards_table;
 $own_boards_stmt = $connection->prepare($own_boards_sql); $own_boards_stmt->bind_param("i", $user_id); $own_boards_stmt->execute();
 $own_boards_result = $own_boards_stmt->get_result();
 while ($board = $own_boards_result->fetch_assoc()) {
@@ -112,7 +112,7 @@ while ($board = $own_boards_result->fetch_assoc()) {
     $boards_data_for_php[] = ['id' => $board['board_id'], 'name' => $board['board_name'], 'page' => $page, 'raw_updated_at' => $board['updated_at'], 'access_type' => $board['access_type'], 'is_archived' => $board['is_archived']];
 } $own_boards_stmt->close();
 
-$shared_boards_sql = "SELECT b.board_id, b.board_name, b.board_type, b.updated_at, b.is_archived, c.permission_level as access_type, u.username as owner_name FROM Planotajs_Collaborators c JOIN Planotajs_Boards b ON c.board_id = b.board_id JOIN Planotajs_Users u ON b.user_id = u.user_id WHERE c.user_id = ? AND b.is_deleted = 0" . $archived_filter_aliased_b_table;
+$shared_boards_sql = "SELECT b.board_id, b.board_name, b.board_type, b.updated_at, b.is_archived, c.permission_level as access_type, u.username as owner_name FROM Planner_Collaborators c JOIN Planner_Boards b ON c.board_id = b.board_id JOIN Planner_Users u ON b.user_id = u.user_id WHERE c.user_id = ? AND b.is_deleted = 0" . $archived_filter_aliased_b_table;
 $shared_boards_stmt = $connection->prepare($shared_boards_sql); $shared_boards_stmt->bind_param("i", $user_id); $shared_boards_stmt->execute();
 $shared_boards_result = $shared_boards_stmt->get_result();
 while ($board = $shared_boards_result->fetch_assoc()) {
@@ -128,7 +128,7 @@ foreach ($boards_data_for_php as $key => $board) {
 }
 
 $unread_notifications_count = 0;
-$stmt_count_notif = $connection->prepare("SELECT COUNT(*) as count FROM Planotajs_Notifications WHERE user_id = ? AND is_read = 0");
+$stmt_count_notif = $connection->prepare("SELECT COUNT(*) as count FROM Planner_Notifications WHERE user_id = ? AND is_read = 0");
 if ($stmt_count_notif) {
     $stmt_count_notif->bind_param("i", $user_id); $stmt_count_notif->execute();
     $count_result_notif = $stmt_count_notif->get_result()->fetch_assoc();
@@ -156,7 +156,7 @@ if ($stmt_accessible_boards) {
 }
 
 if (!empty($accessible_board_ids)) {
-    $sql_create_activity_table_dashboard = "CREATE TABLE IF NOT EXISTS Planotajs_ActivityLog (activity_id INT AUTO_INCREMENT PRIMARY KEY, board_id INT NOT NULL, user_id INT NOT NULL, activity_type VARCHAR(50) NOT NULL, activity_description TEXT NOT NULL, related_entity_id INT NULL, related_entity_type VARCHAR(50) NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (board_id) REFERENCES Planotajs_Boards(board_id) ON DELETE CASCADE, FOREIGN KEY (user_id) REFERENCES Planotajs_Users(user_id) ON DELETE CASCADE)";
+    $sql_create_activity_table_dashboard = "CREATE TABLE IF NOT EXISTS Planner_ActivityLog (activity_id INT AUTO_INCREMENT PRIMARY KEY, board_id INT NOT NULL, user_id INT NOT NULL, activity_type VARCHAR(50) NOT NULL, activity_description TEXT NOT NULL, related_entity_id INT NULL, related_entity_type VARCHAR(50) NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (board_id) REFERENCES Planner_Boards(board_id) ON DELETE CASCADE, FOREIGN KEY (user_id) REFERENCES Planner_Users(user_id) ON DELETE CASCADE)";
     $connection->query($sql_create_activity_table_dashboard);
 
     $board_ids_placeholders_recent = implode(',', array_fill(0, count($accessible_board_ids), '?'));
@@ -171,9 +171,9 @@ if (!empty($accessible_board_ids)) {
     // Modified SQL query:
     // Added "AND al.user_id != ?" to exclude activities by the logged-in user
     $sql_recent_activities = "SELECT al.*, u.username as actor_username, b.board_name 
-                              FROM Planotajs_ActivityLog al
-                              JOIN Planotajs_Users u ON al.user_id = u.user_id
-                              JOIN Planotajs_Boards b ON al.board_id = b.board_id
+                              FROM Planner_ActivityLog al
+                              JOIN Planner_Users u ON al.user_id = u.user_id
+                              JOIN Planner_Boards b ON al.board_id = b.board_id
                               WHERE al.board_id IN ({$board_ids_placeholders_recent})
                               AND al.user_id != ?  -- Exclude activities performed by the logged-in user
                               ORDER BY al.created_at DESC

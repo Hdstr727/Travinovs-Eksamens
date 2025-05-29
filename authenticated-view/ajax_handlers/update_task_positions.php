@@ -24,8 +24,8 @@ if (!is_array($tasks_data) || empty($tasks_data)) {
 }
 
 // ... (permission check - $perm_stmt->close() is inside the if block, should be outside if it proceeds)
-$perm_check_sql = "SELECT b.board_id FROM Planotajs_Boards b
-                   LEFT JOIN Planotajs_Collaborators c ON b.board_id = c.board_id AND c.user_id = ?
+$perm_check_sql = "SELECT b.board_id FROM Planner_Boards b
+                   LEFT JOIN Planner_Collaborators c ON b.board_id = c.board_id AND c.user_id = ?
                    WHERE b.board_id = ? AND (b.user_id = ? OR c.permission_level IN ('edit', 'admin'))";
 $perm_stmt = $connection->prepare($perm_check_sql);
 $perm_stmt->bind_param("iii", $user_id, $board_id, $user_id);
@@ -45,7 +45,7 @@ $all_updates_successful = true; // Renamed for clarity
 
 foreach ($tasks_data as $task) {
     // ... (task data validation) ...
-    $update_sql = "UPDATE Planotajs_Tasks
+    $update_sql = "UPDATE Planner_Tasks
                   SET task_order = ?, column_id = ?
                   WHERE task_id = ? AND board_id = ? AND is_deleted = 0";
     $update_stmt = $connection->prepare($update_sql);

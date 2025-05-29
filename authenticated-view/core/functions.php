@@ -6,7 +6,7 @@ ini_set('display_errors', 1);
 
 if (!function_exists('update_board_last_activity_timestamp')) {
     function update_board_last_activity_timestamp(mysqli $connection, int $board_id) {
-        $sql = "UPDATE Planotajs_Boards SET updated_at = CURRENT_TIMESTAMP WHERE board_id = ?";
+        $sql = "UPDATE Planner_Boards SET updated_at = CURRENT_TIMESTAMP WHERE board_id = ?";
         $stmt = $connection->prepare($sql);
         if ($stmt) {
             $stmt->bind_param("i", $board_id);
@@ -49,7 +49,7 @@ if (!function_exists('get_user_notification_preferences')) {
         // 1. Try board-specific settings if board_id is provided
         if ($board_id !== null) {
             $sql_board = "SELECT `{$activity_type_key}`, `channel_app`, `channel_email` 
-                          FROM `Planotajs_NotificationSettings` 
+                          FROM `Planner_NotificationSettings` 
                           WHERE `user_id` = ? AND `board_id` = ?";
             $stmt_board = $connection->prepare($sql_board);
             if ($stmt_board) {
@@ -79,7 +79,7 @@ if (!function_exists('get_user_notification_preferences')) {
 
         // 2. Try global user settings (board_id IS NULL)
         $sql_global = "SELECT `{$activity_type_key}`, `channel_app`, `channel_email` 
-                       FROM `Planotajs_NotificationSettings` 
+                       FROM `Planner_NotificationSettings` 
                        WHERE `user_id` = ? AND `board_id` IS NULL";
         $stmt_global = $connection->prepare($sql_global);
         if ($stmt_global) {
@@ -122,13 +122,13 @@ function log_and_notify(
     ?string $related_entity_type = null,
     array $potential_recipient_user_ids = [], // Users who *could* receive a notification
     ?string $link = null,
-    ?string $notification_type_override = null // e.g., 'invitation' for Planotajs_Notifications.type
+    ?string $notification_type_override = null // e.g., 'invitation' for Planner_Notifications.type
 ) {
     error_log("--- log_and_notify CALLED ---");
     error_log("Board: $board_id, Actor: $actor_user_id, Activity: $activity_type, Desc: $activity_description");
 
     // 1. Log the activity
-    $stmt_activity = $connection->prepare("INSERT INTO Planotajs_ActivityLog (board_id, user_id, activity_type, activity_description, related_entity_id, related_entity_type) VALUES (?, ?, ?, ?, ?, ?)");
+    $stmt_activity = $connection->prepare("INSERT INTO Planner_ActivityLog (board_id, user_id, activity_type, activity_description, related_entity_id, related_entity_type) VALUES (?, ?, ?, ?, ?, ?)");
     if (!$stmt_activity) {
         error_log("log_and_notify: Prepare failed for ActivityLog: " . $connection->error);
         return;
@@ -200,7 +200,7 @@ function log_and_notify(
         }
     }
     
-    // Determine the 'type' for Planotajs_Notifications table.
+    // Determine the 'type' for Planner_Notifications table.
     // 'invitation' notifications are special as they are direct.
     $notification_db_type = $notification_type_override ?? $activity_type;
 
@@ -240,8 +240,8 @@ function log_and_notify(
 
 
         if ($should_send_app_notification) {
-            // Insert into Planotajs_Notifications
-            $stmt_notify = $connection->prepare("INSERT INTO Planotajs_Notifications (user_id, activity_id, board_id, message, link, type, related_entity_id, related_entity_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
+            // Insert into Planner_Notifications
+            $stmt_notify = $connection->prepare("INSERT INTO Planner_Notifications (user_id, activity_id, board_id, message, link, type, related_entity_id, related_entity_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
             if (!$stmt_notify) {
                 error_log("log_and_notify: Prepare failed for Notifications table: " . $connection->error);
             } else {
@@ -267,10 +267,10 @@ function log_and_notify(
 
 function get_board_and_actor_info(mysqli $connection, int $board_id, int $actor_user_id): array {
     $info = ['board_name' => 'A board', 'actor_username' => 'Someone'];
-    // Ensure Planotajs_Users table exists and has user_id, username
-    // Ensure Planotajs_Boards table exists and has board_id, board_name
+    // Ensure Planner_Users table exists and has user_id, username
+    // Ensure Planner_Boards table exists and has board_id, board_name
     $sql = "SELECT b.board_name, u.username as actor_username 
-            FROM Planotajs_Boards b, Planotajs_Users u 
+            FROM Planner_Boards b, Planner_Users u 
             WHERE b.board_id = ? AND u.user_id = ?";
     $stmt = $connection->prepare($sql);
     if ($stmt) {
@@ -290,11 +290,11 @@ function get_board_and_actor_info(mysqli $connection, int $board_id, int $actor_
 
 function get_board_associated_user_ids(mysqli $connection, int $board_id): array {
     $user_ids = [];
-    // Ensure Planotajs_Boards has user_id (owner)
-    // Ensure Planotajs_Collaborators has user_id and board_id
-    $sql = "(SELECT user_id FROM Planotajs_Boards WHERE board_id = ?) 
+    // Ensure Planner_Boards has user_id (owner)
+    // Ensure Planner_Collaborators has user_id and board_id
+    $sql = "(SELECT user_id FROM Planner_Boards WHERE board_id = ?) 
             UNION 
-            (SELECT user_id FROM Planotajs_Collaborators WHERE board_id = ?)";
+            (SELECT user_id FROM Planner_Collaborators WHERE board_id = ?)";
     $stmt = $connection->prepare($sql);
     if ($stmt) {
         $stmt->bind_param("ii", $board_id, $board_id);

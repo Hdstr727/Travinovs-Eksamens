@@ -54,10 +54,10 @@ if (strlen($message_text) > 1000) { // Limiting message to 1000 characters
 // Your existing access check is fine, but ensure it doesn't exit prematurely if you want to send notifications
 // For simplicity, I'll keep your access check as is. If it fails, no message is sent, thus no notification.
 $access_sql = "SELECT b.user_id as board_owner_id, c.permission_level, pb.board_name, pu.username as actor_username
-              FROM Planotajs_Boards b
-              LEFT JOIN Planotajs_Collaborators c ON b.board_id = c.board_id AND c.user_id = ?
-              JOIN Planotajs_Users pu ON pu.user_id = ?  -- Join to get actor's username
-              JOIN Planotajs_Boards pb ON pb.board_id = ? -- Join to get board name
+              FROM Planner_Boards b
+              LEFT JOIN Planner_Collaborators c ON b.board_id = c.board_id AND c.user_id = ?
+              JOIN Planner_Users pu ON pu.user_id = ?  -- Join to get actor's username
+              JOIN Planner_Boards pb ON pb.board_id = ? -- Join to get board name
               WHERE b.board_id = ?
               AND (b.user_id = ? OR c.permission_level IN ('admin', 'edit')) -- editor might also send messages
               AND b.is_deleted = 0";
@@ -82,7 +82,7 @@ $access_stmt->close();
 
 
 // Insert message
-$insert_sql = "INSERT INTO Planotajs_ChatMessages (board_id, user_id, message_text) VALUES (?, ?, ?)";
+$insert_sql = "INSERT INTO Planner_ChatMessages (board_id, user_id, message_text) VALUES (?, ?, ?)";
 $insert_stmt = $connection->prepare($insert_sql);
 $insert_stmt->bind_param("iis", $board_id, $user_id, $message_text);
 
@@ -92,9 +92,9 @@ if ($insert_stmt->execute()) {
     // ------------- START NOTIFICATION LOGIC -------------
     // 1. Identify potential recipients: all collaborators on this board + the board owner
     $recipients_sql = "
-        (SELECT user_id FROM Planotajs_Collaborators WHERE board_id = ?)
+        (SELECT user_id FROM Planner_Collaborators WHERE board_id = ?)
         UNION
-        (SELECT user_id FROM Planotajs_Boards WHERE board_id = ?)
+        (SELECT user_id FROM Planner_Boards WHERE board_id = ?)
     ";
     $stmt_recipients = $connection->prepare($recipients_sql);
     $stmt_recipients->bind_param("ii", $board_id, $board_id);

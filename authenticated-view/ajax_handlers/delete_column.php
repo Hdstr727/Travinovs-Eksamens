@@ -20,7 +20,7 @@ $board_id = intval($_POST['board_id']);
 
 // Fetch column name BEFORE deleting for notification message
 $column_name_for_log = "a column";
-$stmt_col_name = $connection->prepare("SELECT column_name FROM Planotajs_Columns WHERE column_id = ? AND board_id = ?");
+$stmt_col_name = $connection->prepare("SELECT column_name FROM Planner_Columns WHERE column_id = ? AND board_id = ?");
 if ($stmt_col_name) {
     $stmt_col_name->bind_param("ii", $column_id, $board_id);
     $stmt_col_name->execute();
@@ -32,9 +32,9 @@ if ($stmt_col_name) {
 }
 
 
-$perm_check_sql = "SELECT pc.column_id FROM Planotajs_Columns pc
-                   JOIN Planotajs_Boards b ON pc.board_id = b.board_id
-                   LEFT JOIN Planotajs_Collaborators c ON b.board_id = c.board_id AND c.user_id = ?
+$perm_check_sql = "SELECT pc.column_id FROM Planner_Columns pc
+                   JOIN Planner_Boards b ON pc.board_id = b.board_id
+                   LEFT JOIN Planner_Collaborators c ON b.board_id = c.board_id AND c.user_id = ?
                    WHERE pc.column_id = ? AND pc.board_id = ?
                    AND (b.user_id = ? OR c.permission_level = 'admin') 
                    AND pc.is_deleted = 0"; // Only owner or board admin can delete columns
@@ -54,13 +54,13 @@ $perm_stmt->close();
 $connection->begin_transaction();
 $operation_successful = false; 
 try {
-    $delete_tasks_sql = "UPDATE Planotajs_Tasks SET is_deleted = 1 WHERE column_id = ? AND board_id = ?";
+    $delete_tasks_sql = "UPDATE Planner_Tasks SET is_deleted = 1 WHERE column_id = ? AND board_id = ?";
     $delete_tasks_stmt = $connection->prepare($delete_tasks_sql);
     $delete_tasks_stmt->bind_param("ii", $column_id, $board_id);
     $delete_tasks_stmt->execute(); 
     $delete_tasks_stmt->close();
 
-    $delete_column_sql = "UPDATE Planotajs_Columns SET is_deleted = 1 WHERE column_id = ? AND board_id = ?";
+    $delete_column_sql = "UPDATE Planner_Columns SET is_deleted = 1 WHERE column_id = ? AND board_id = ?";
     $delete_column_stmt = $connection->prepare($delete_column_sql);
     $delete_column_stmt->bind_param("ii", $column_id, $board_id);
     $delete_column_stmt->execute(); 

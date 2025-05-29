@@ -34,8 +34,8 @@ $last_id = isset($_GET['last_id']) ? intval($_GET['last_id']) : 0;
 
 // Check if user has access to this board
 $access_sql = "SELECT b.board_id 
-              FROM Planotajs_Boards b
-              LEFT JOIN Planotajs_Collaborators c ON b.board_id = c.board_id 
+              FROM Planner_Boards b
+              LEFT JOIN Planner_Collaborators c ON b.board_id = c.board_id 
               WHERE b.board_id = ? 
               AND (b.user_id = ? OR c.user_id = ?)
               AND b.is_deleted = 0";
@@ -57,8 +57,8 @@ $access_stmt->close();
 // Get messages for the board
 // If last_id is provided, only get newer messages
 $message_sql = "SELECT m.message_id, m.user_id, u.username, u.full_name, m.message_text, m.created_at
-               FROM Planotajs_ChatMessages m
-               JOIN Planotajs_Users u ON m.user_id = u.user_id
+               FROM Planner_ChatMessages m
+               JOIN Planner_Users u ON m.user_id = u.user_id
                WHERE m.board_id = ? ";
 
 if ($last_id > 0) {

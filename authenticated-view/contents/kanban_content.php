@@ -22,8 +22,8 @@ $permission_level = 'read'; // Default
 if ($board_id > 0) {
     // Check if user has access to this board (owner or collaborator)
     $access_sql = "SELECT b.board_id, b.board_name, b.user_id
-                   FROM Planotajs_Boards b
-                   LEFT JOIN Planotajs_Collaborators c ON b.board_id = c.board_id AND c.user_id = ?
+                   FROM Planner_Boards b
+                   LEFT JOIN Planner_Collaborators c ON b.board_id = c.board_id AND c.user_id = ?
                    WHERE b.board_id = ? AND b.is_deleted = 0
                    AND (b.user_id = ? OR c.user_id = ?)";
 
@@ -40,7 +40,7 @@ if ($board_id > 0) {
         if ($is_owner) {
             $permission_level = 'owner';
         } else {
-            $collab_sql = "SELECT permission_level FROM Planotajs_Collaborators
+            $collab_sql = "SELECT permission_level FROM Planner_Collaborators
                            WHERE board_id = ? AND user_id = ?";
             $collab_stmt = $connection->prepare($collab_sql);
             $collab_stmt->bind_param("ii", $board_id, $user_id);
@@ -54,7 +54,7 @@ if ($board_id > 0) {
         $can_add_columns = ($permission_level === 'owner' || $permission_level === 'edit' || $permission_level === 'admin');
 
         $columns_sql = "SELECT column_id, column_name, column_identifier, column_order
-                        FROM Planotajs_Columns
+                        FROM Planner_Columns
                         WHERE board_id = ? AND is_deleted = 0
                         ORDER BY column_order ASC";
         $columns_stmt = $connection->prepare($columns_sql);
@@ -68,7 +68,7 @@ if ($board_id > 0) {
                 ['name' => 'In Progress', 'identifier' => 'in-progress', 'order' => 1],
                 ['name' => 'Done', 'identifier' => 'done', 'order' => 2]
             ];
-            $insert_col_sql = "INSERT INTO Planotajs_Columns (board_id, column_name, column_identifier, column_order) VALUES (?, ?, ?, ?)";
+            $insert_col_sql = "INSERT INTO Planner_Columns (board_id, column_name, column_identifier, column_order) VALUES (?, ?, ?, ?)";
             $insert_col_stmt = $connection->prepare($insert_col_sql);
             foreach ($default_columns as $col) {
                 $insert_col_stmt->bind_param("issi", $board_id, $col['name'], $col['identifier'], $col['order']);
@@ -100,8 +100,8 @@ if ($board_id > 0) {
             $tasks_sql = "SELECT t.task_id, t.task_name, t.task_description, t.column_id,
                                  pc.column_identifier,
                                  t.task_order, t.due_date, t.is_completed, t.priority
-                          FROM Planotajs_Tasks t
-                          JOIN Planotajs_Columns pc ON t.column_id = pc.column_id
+                          FROM Planner_Tasks t
+                          JOIN Planner_Columns pc ON t.column_id = pc.column_id
                           WHERE t.board_id = ? AND t.is_deleted = 0 AND pc.is_deleted = 0
                           ORDER BY pc.column_order ASC, t.task_order ASC";
             $tasks_stmt = $connection->prepare($tasks_sql);

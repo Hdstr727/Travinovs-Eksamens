@@ -23,7 +23,7 @@ function debug_chat_issues() {
     
     // If board_id exists, check board existence
     if (isset($board_id) && $board_id > 0) {
-        $board_sql = "SELECT board_id, board_name, user_id, is_deleted FROM Planotajs_Boards WHERE board_id = ?";
+        $board_sql = "SELECT board_id, board_name, user_id, is_deleted FROM Planner_Boards WHERE board_id = ?";
         $board_stmt = $connection->prepare($board_sql);
         $board_stmt->bind_param("i", $board_id);
         $board_stmt->execute();
@@ -42,7 +42,7 @@ function debug_chat_issues() {
             
             // If not owner, check if collaborator
             if (!$is_owner) {
-                $collab_sql = "SELECT permission_level FROM Planotajs_Collaborators 
+                $collab_sql = "SELECT permission_level FROM Planner_Collaborators 
                               WHERE board_id = ? AND user_id = ?";
                 $collab_stmt = $connection->prepare($collab_sql);
                 $collab_stmt->bind_param("ii", $board_id, $user_id);
@@ -83,7 +83,7 @@ debug_chat_issues();
 
 // Update page title if board_id is valid
 if ($board_id > 0) {
-    $board_sql = "SELECT board_name FROM Planotajs_Boards WHERE board_id = ? AND is_deleted = 0";
+    $board_sql = "SELECT board_name FROM Planner_Boards WHERE board_id = ? AND is_deleted = 0";
     $board_stmt = $connection->prepare($board_sql);
     $board_stmt->bind_param("i", $board_id);
     $board_stmt->execute();
@@ -106,8 +106,8 @@ $chat_url = $board_id > 0 ? "chat.php?board_id=$board_id" : "index.php";
 // Check if user has access to this board (either as owner or collaborator)
 if ($board_id > 0) {
     $access_sql = "SELECT b.board_id, b.board_name, b.user_id 
-                  FROM Planotajs_Boards b
-                  LEFT JOIN Planotajs_Collaborators c ON b.board_id = c.board_id 
+                  FROM Planner_Boards b
+                  LEFT JOIN Planner_Collaborators c ON b.board_id = c.board_id 
                   WHERE b.board_id = ? 
                   AND (b.user_id = ? OR c.user_id = ?)
                   AND b.is_deleted = 0";
@@ -131,7 +131,7 @@ if ($board_id > 0) {
 $permission_level = 'read'; // Default to read-only
 if ($board_id > 0) {
     // Check if user is the owner (full permissions)
-    $owner_check_sql = "SELECT user_id FROM Planotajs_Boards WHERE board_id = ? AND user_id = ?";
+    $owner_check_sql = "SELECT user_id FROM Planner_Boards WHERE board_id = ? AND user_id = ?";
     $owner_check_stmt = $connection->prepare($owner_check_sql);
     $owner_check_stmt->bind_param("ii", $board_id, $user_id);
     $owner_check_stmt->execute();
@@ -141,7 +141,7 @@ if ($board_id > 0) {
         $permission_level = 'owner'; // User is the owner
     } else {
         // Check collaborator permission level
-        $collab_sql = "SELECT permission_level FROM Planotajs_Collaborators 
+        $collab_sql = "SELECT permission_level FROM Planner_Collaborators 
                       WHERE board_id = ? AND user_id = ?";
         $collab_stmt = $connection->prepare($collab_sql);
         $collab_stmt->bind_param("ii", $board_id, $user_id);
@@ -158,7 +158,7 @@ if ($board_id > 0) {
 }
 
 // Get username of current user
-$username_sql = "SELECT username, full_name FROM Planotajs_Users WHERE user_id = ?";
+$username_sql = "SELECT username, full_name FROM Planner_Users WHERE user_id = ?";
 $username_stmt = $connection->prepare($username_sql);
 $username_stmt->bind_param("i", $user_id);
 $username_stmt->execute();

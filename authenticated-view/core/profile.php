@@ -14,7 +14,7 @@ $message = "";
 $messageType = ""; // "success" or "error"
 
 // Fetch current user data
-$sql_user_data = "SELECT username, email, full_name, bio, profile_picture FROM Planotajs_Users WHERE user_id = ?";
+$sql_user_data = "SELECT username, email, full_name, bio, profile_picture FROM Planner_Users WHERE user_id = ?";
 $stmt_user_data = $connection->prepare($sql_user_data);
 $stmt_user_data->bind_param("i", $user_id);
 $stmt_user_data->execute();
@@ -68,7 +68,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $uploadPathRelative = $uploadDirRelative . $newFilename; // For DB
             
             if (move_uploaded_file($_FILES['profile_picture']['tmp_name'], $uploadPathAbsolute)) {
-                $updatePicSql = "UPDATE Planotajs_Users SET profile_picture = ?, updated_at = NOW() WHERE user_id = ?";
+                $updatePicSql = "UPDATE Planner_Users SET profile_picture = ?, updated_at = NOW() WHERE user_id = ?";
                 $updatePicStmt = $connection->prepare($updatePicSql);
                 $updatePicStmt->bind_param("si", $uploadPathRelative, $user_id);
                 if ($updatePicStmt->execute()) {
@@ -102,7 +102,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         } elseif (!preg_match("/^[a-zA-Z0-9_]+$/", $new_username)) {
             $profile_errors[] = "Username can only contain letters, numbers, and underscores.";
         } elseif ($new_username !== $current_username) { // Check uniqueness only if changed
-            $stmt_check_username = $connection->prepare("SELECT user_id FROM Planotajs_Users WHERE username = ? AND user_id != ?");
+            $stmt_check_username = $connection->prepare("SELECT user_id FROM Planner_Users WHERE username = ? AND user_id != ?");
             $stmt_check_username->bind_param("si", $new_username, $user_id);
             $stmt_check_username->execute();
             if ($stmt_check_username->get_result()->num_rows > 0) {
@@ -118,7 +118,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         } elseif (!filter_var($new_email, FILTER_VALIDATE_EMAIL)) {
             $profile_errors[] = "Invalid email format.";
         } elseif ($new_email !== $current_email) { // Check uniqueness only if changed
-            $stmt_check_email = $connection->prepare("SELECT user_id FROM Planotajs_Users WHERE email = ? AND user_id != ?");
+            $stmt_check_email = $connection->prepare("SELECT user_id FROM Planner_Users WHERE email = ? AND user_id != ?");
             $stmt_check_email->bind_param("si", $new_email, $user_id);
             $stmt_check_email->execute();
             if ($stmt_check_email->get_result()->num_rows > 0) {
@@ -129,7 +129,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
 
         if (empty($profile_errors)) {
-            $updateProfileSql = "UPDATE Planotajs_Users SET 
+            $updateProfileSql = "UPDATE Planner_Users SET 
                                username = ?, email = ?, full_name = ?, bio = ?, updated_at = NOW() 
                                WHERE user_id = ?";
             $updateProfileStmt = $connection->prepare($updateProfileSql);
@@ -172,7 +172,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         } elseif ($new_password_input !== $confirm_password_input) {
             $message = "New passwords do not match!"; $messageType = "error";
         } else {
-            $passwordSql = "SELECT password FROM Planotajs_Users WHERE user_id = ?";
+            $passwordSql = "SELECT password FROM Planner_Users WHERE user_id = ?";
             // ... (your existing password change logic, seems okay) ...
             $passwordStmt = $connection->prepare($passwordSql);
             $passwordStmt->bind_param("i", $user_id);
@@ -183,7 +183,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             
             if (password_verify($current_password_input, $passwordData['password'])) {
                 $hashed_password = password_hash($new_password_input, PASSWORD_DEFAULT);
-                $updatePasswordSql = "UPDATE Planotajs_Users SET password = ?, updated_at = NOW() WHERE user_id = ?";
+                $updatePasswordSql = "UPDATE Planner_Users SET password = ?, updated_at = NOW() WHERE user_id = ?";
                 $updatePasswordStmt = $connection->prepare($updatePasswordSql);
                 $updatePasswordStmt->bind_param("si", $hashed_password, $user_id);
                 if ($updatePasswordStmt->execute()) {

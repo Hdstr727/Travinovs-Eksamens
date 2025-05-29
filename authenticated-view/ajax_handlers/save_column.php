@@ -21,8 +21,8 @@ $column_identifier = trim($_POST['column_identifier']);
 $column_order = intval($_POST['column_order']);
 
 $perm_check_sql = "SELECT b.user_id, c.permission_level
-                   FROM Planotajs_Boards b
-                   LEFT JOIN Planotajs_Collaborators c ON b.board_id = c.board_id AND c.user_id = ?
+                   FROM Planner_Boards b
+                   LEFT JOIN Planner_Collaborators c ON b.board_id = c.board_id AND c.user_id = ?
                    WHERE b.board_id = ? AND b.is_deleted = 0
                    AND (b.user_id = ? OR c.permission_level IN ('admin', 'edit'))";
 $perm_stmt = $connection->prepare($perm_check_sql);
@@ -42,7 +42,7 @@ if (empty($column_name) || empty($column_identifier)) {
     exit();
 }
 
-$check_sql = "SELECT column_id FROM Planotajs_Columns WHERE board_id = ? AND column_identifier = ? AND is_deleted = 0";
+$check_sql = "SELECT column_id FROM Planner_Columns WHERE board_id = ? AND column_identifier = ? AND is_deleted = 0";
 $check_stmt = $connection->prepare($check_sql);
 $check_stmt->bind_param("is", $board_id, $column_identifier);
 $check_stmt->execute();
@@ -55,7 +55,7 @@ if ($result_check->num_rows > 0) {
 }
 $check_stmt->close(); 
 
-$sql = "INSERT INTO Planotajs_Columns (board_id, column_name, column_identifier, column_order) VALUES (?, ?, ?, ?)";
+$sql = "INSERT INTO Planner_Columns (board_id, column_name, column_identifier, column_order) VALUES (?, ?, ?, ?)";
 $stmt = $connection->prepare($sql);
 $stmt->bind_param("issi", $board_id, $column_name, $column_identifier, $column_order);
 

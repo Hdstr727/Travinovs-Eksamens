@@ -18,7 +18,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         // Prepare a statement to fetch user data by username OR email
         // Ensure `is_deleted = 0` is part of your user active check
         $query = $connection->prepare("SELECT user_id, username, email, password, is_deleted 
-                                       FROM Planotajs_Users 
+                                       FROM Planner_Users 
                                        WHERE (username = ? OR email = ?) AND is_deleted = 0");
         if ($query) {
             $query->bind_param("ss", $login_identifier, $login_identifier);

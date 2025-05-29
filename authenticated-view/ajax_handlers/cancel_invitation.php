@@ -32,9 +32,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     b.user_id as board_owner_id, 
                                     u_invited.username as invited_username,
                                     b.board_name
-                             FROM Planotajs_Invitations i
-                             JOIN Planotajs_Boards b ON i.board_id = b.board_id
-                             JOIN Planotajs_Users u_invited ON i.invited_user_id = u_invited.user_id
+                             FROM Planner_Invitations i
+                             JOIN Planner_Boards b ON i.board_id = b.board_id
+                             JOIN Planner_Users u_invited ON i.invited_user_id = u_invited.user_id
                              WHERE i.invitation_id = ?";
         $stmt_fetch = $connection->prepare($fetch_invite_sql);
         if (!$stmt_fetch) throw new Exception("Failed to prepare invitation fetch: " . $connection->error);
@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // 4. Update invitation status to 'cancelled'
-        $update_invite_sql = "UPDATE Planotajs_Invitations SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE invitation_id = ?";
+        $update_invite_sql = "UPDATE Planner_Invitations SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE invitation_id = ?";
         $stmt_update_invite = $connection->prepare($update_invite_sql);
         if (!$stmt_update_invite) throw new Exception("Failed to prepare invitation update: " . $connection->error);
 
@@ -87,7 +87,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         // 6. Optionally, delete the notification sent to the invited user about this pending invitation
         // This is good for cleanup so they don't see an old notification with now-defunct actions.
-        $delete_notification_sql = "DELETE FROM Planotajs_Notifications 
+        $delete_notification_sql = "DELETE FROM Planner_Notifications 
                                     WHERE related_entity_id = ? AND related_entity_type = 'invitation' AND type = 'invitation' AND user_id = ?";
         $stmt_delete_notif = $connection->prepare($delete_notification_sql);
         if($stmt_delete_notif){

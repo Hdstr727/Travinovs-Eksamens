@@ -53,7 +53,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     // Check if username already exists (only if username itself is not empty and format is okay)
     if (!isset($errors['username'])) { // Proceed only if username basic validation passed
-        $stmt_check_username = $connection->prepare("SELECT user_id FROM Planotajs_Users WHERE username = ?");
+        $stmt_check_username = $connection->prepare("SELECT user_id FROM Planner_Users WHERE username = ?");
         if ($stmt_check_username) {
             $stmt_check_username->bind_param("s", $username_val);
             $stmt_check_username->execute();
@@ -71,7 +71,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     // Check if email already exists (only if email itself is not empty and format is okay)
     if (!isset($errors['email'])) { // Proceed only if email basic validation passed
-        $stmt_check_email = $connection->prepare("SELECT user_id FROM Planotajs_Users WHERE email = ?");
+        $stmt_check_email = $connection->prepare("SELECT user_id FROM Planner_Users WHERE email = ?");
         if ($stmt_check_email) {
             $stmt_check_email->bind_param("s", $email_val);
             $stmt_check_email->execute();
@@ -92,7 +92,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $hashed_password = password_hash($password, PASSWORD_DEFAULT);
         $is_deleted = 0; 
         
-        $query_insert = $connection->prepare("INSERT INTO Planotajs_Users (username, email, password, is_deleted) VALUES (?, ?, ?, ?)");
+        $query_insert = $connection->prepare("INSERT INTO Planner_Users (username, email, password, is_deleted) VALUES (?, ?, ?, ?)");
         if ($query_insert) {
             $query_insert->bind_param("sssi", $username_val, $email_val, $hashed_password, $is_deleted);
             if ($query_insert->execute()) {

@@ -49,7 +49,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $board_owner_id = 0; // Initialize
         $inviter_permission_on_board = null;
 
-        $board_check_sql = "SELECT board_name, user_id FROM Planotajs_Boards WHERE board_id = ? AND is_deleted = 0";
+        $board_check_sql = "SELECT board_name, user_id FROM Planner_Boards WHERE board_id = ? AND is_deleted = 0";
         $stmt_board_check = $connection->prepare($board_check_sql);
         if (!$stmt_board_check) throw new Exception("DB Error (bc_prep): " . $connection->error);
         $stmt_board_check->bind_param("i", $board_id);
@@ -63,7 +63,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($board_owner_id == $inviter_user_id) {
                 $inviter_permission_on_board = 'owner';
             } else {
-                $collab_perm_sql = "SELECT permission_level FROM Planotajs_Collaborators WHERE board_id = ? AND user_id = ?";
+                $collab_perm_sql = "SELECT permission_level FROM Planner_Collaborators WHERE board_id = ? AND user_id = ?";
                 $stmt_collab_perm = $connection->prepare($collab_perm_sql);
                 if (!$stmt_collab_perm) throw new Exception("DB Error (inviter_cp_prep): " . $connection->error);
                 $stmt_collab_perm->bind_param("ii", $board_id, $inviter_user_id);
@@ -88,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // 3. Find the user to be invited
-        $find_user_sql = "SELECT user_id, username FROM Planotajs_Users WHERE email = ?";
+        $find_user_sql = "SELECT user_id, username FROM Planner_Users WHERE email = ?";
         $stmt_find_user = $connection->prepare($find_user_sql);
         if (!$stmt_find_user) throw new Exception("DB Error (fu_prep): " . $connection->error);
         $stmt_find_user->bind_param("s", $invited_email);
@@ -110,7 +110,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // 5. Check if already a collaborator
-        $check_collab_sql = "SELECT collaboration_id FROM Planotajs_Collaborators WHERE board_id = ? AND user_id = ?";
+        $check_collab_sql = "SELECT collaboration_id FROM Planner_Collaborators WHERE board_id = ? AND user_id = ?";
         $stmt_check_collab = $connection->prepare($check_collab_sql);
         if (!$stmt_check_collab) throw new Exception("DB Error (cc_prep): " . $connection->error);
         $stmt_check_collab->bind_param("ii", $board_id, $invited_user_id);
@@ -121,7 +121,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt_check_collab->close();
 
         // 6. Check for existing pending invitation
-        $check_pending_sql = "SELECT invitation_id FROM Planotajs_Invitations WHERE board_id = ? AND invited_user_id = ? AND status = 'pending'";
+        $check_pending_sql = "SELECT invitation_id FROM Planner_Invitations WHERE board_id = ? AND invited_user_id = ? AND status = 'pending'";
         $stmt_check_pending = $connection->prepare($check_pending_sql);
         if (!$stmt_check_pending) throw new Exception("DB Error (pending_cp_prep): " . $connection->error);
         $stmt_check_pending->bind_param("ii", $board_id, $invited_user_id);
@@ -133,7 +133,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // 7. Create Invitation Record
         $token = bin2hex(random_bytes(16)); 
-        $insert_invite_sql = "INSERT INTO Planotajs_Invitations (board_id, inviter_user_id, invited_user_id, permission_level, status, token, custom_message) VALUES (?, ?, ?, ?, 'pending', ?, ?)";
+        $insert_invite_sql = "INSERT INTO Planner_Invitations (board_id, inviter_user_id, invited_user_id, permission_level, status, token, custom_message) VALUES (?, ?, ?, ?, 'pending', ?, ?)";
         $stmt_insert_invite = $connection->prepare($insert_invite_sql);
         if (!$stmt_insert_invite) throw new Exception("DB Error (ii_prep): " . $connection->error);
         $stmt_insert_invite->bind_param("iiisss", $board_id, $inviter_user_id, $invited_user_id, $permission_level_from_form, $token, $custom_message_from_form);
@@ -171,7 +171,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $related_entity_type_for_notification = 'invitation'; 
 
         $stmt_notify_invitee = $connection->prepare(
-            "INSERT INTO Planotajs_Notifications (user_id, activity_id, board_id, message, link, type, related_entity_id, related_entity_type) 
+            "INSERT INTO Planner_Notifications (user_id, activity_id, board_id, message, link, type, related_entity_id, related_entity_type) 
              VALUES (?, NULL, ?, ?, ?, ?, ?, ?)"
         );
         if (!$stmt_notify_invitee) throw new Exception("DB Error (ni_prep): " . $connection->error);

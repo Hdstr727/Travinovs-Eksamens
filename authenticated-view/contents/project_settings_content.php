@@ -28,7 +28,7 @@ if (isset($_SESSION['settings_error'])) {
 
 // --- Get Owned Boards (My Projects) ---
 $sql_owned_boards = "SELECT board_id, board_name, is_archived
-                     FROM Planotajs_Boards 
+                     FROM Planner_Boards 
                      WHERE user_id = ? AND is_deleted = 0
                      ORDER BY board_name ASC";
 $stmt_owned_boards = $connection->prepare($sql_owned_boards);
@@ -43,8 +43,8 @@ $stmt_owned_boards->close();
 
 // --- Get Shared Boards (Projects Shared With Me) ---
 $sql_shared_boards = "SELECT b.board_id, b.board_name, b.is_archived, c.permission_level
-                      FROM Planotajs_Boards b
-                      JOIN Planotajs_Collaborators c ON b.board_id = c.board_id
+                      FROM Planner_Boards b
+                      JOIN Planner_Collaborators c ON b.board_id = c.board_id
                       WHERE c.user_id = ? AND b.user_id != ? AND b.is_deleted = 0
                       ORDER BY b.board_name ASC";
 $stmt_shared_boards = $connection->prepare($sql_shared_boards);
@@ -72,7 +72,7 @@ $current_user_permission_on_active_board = null; // 'owner', 'admin', 'edit', 'v
 
 if ($active_board_id > 0) {
     // Fetch board details (owner ID is crucial)
-    $sql_details = "SELECT * FROM Planotajs_Boards WHERE board_id = ? AND is_deleted = 0";
+    $sql_details = "SELECT * FROM Planner_Boards WHERE board_id = ? AND is_deleted = 0";
     $stmt_details = $connection->prepare($sql_details);
     $stmt_details->bind_param("i", $active_board_id);
     $stmt_details->execute();
@@ -85,7 +85,7 @@ if ($active_board_id > 0) {
             $current_user_permission_on_active_board = 'owner';
         } else {
             // Check if the logged-in user is a collaborator on this board
-            $sql_collab_perm = "SELECT permission_level FROM Planotajs_Collaborators WHERE board_id = ? AND user_id = ?";
+            $sql_collab_perm = "SELECT permission_level FROM Planner_Collaborators WHERE board_id = ? AND user_id = ?";
             $stmt_collab_perm = $connection->prepare($sql_collab_perm);
             $stmt_collab_perm->bind_param("ii", $active_board_id, $user_id);
             $stmt_collab_perm->execute();
@@ -122,7 +122,7 @@ $default_channel_settings = ['channel_app' => 1, 'channel_email' => 0];
 
 if ($active_board_id > 0 && $board_details && $current_user_permission_on_active_board) {
     $current_settings_from_db = [];
-    $sql_notif_settings = "SELECT * FROM Planotajs_NotificationSettings WHERE user_id = ? AND board_id = ?";
+    $sql_notif_settings = "SELECT * FROM Planner_NotificationSettings WHERE user_id = ? AND board_id = ?";
     $stmt_notif_settings = $connection->prepare($sql_notif_settings);
     if ($stmt_notif_settings) {
         $stmt_notif_settings->bind_param("ii", $user_id, $active_board_id);
@@ -132,7 +132,7 @@ if ($active_board_id > 0 && $board_details && $current_user_permission_on_active
             $current_settings_from_db = $result_notif_settings->fetch_assoc();
             $current_settings_from_db['source'] = 'board_specific';
         } else {
-            $sql_global_notif_settings = "SELECT * FROM Planotajs_NotificationSettings WHERE user_id = ? AND board_id IS NULL";
+            $sql_global_notif_settings = "SELECT * FROM Planner_NotificationSettings WHERE user_id = ? AND board_id IS NULL";
             $stmt_global_notif_settings = $connection->prepare($sql_global_notif_settings);
             if ($stmt_global_notif_settings) {
                 $stmt_global_notif_settings->bind_param("i", $user_id);
@@ -166,21 +166,21 @@ if ($active_board_id > 0 && $board_details && $current_user_permission_on_active
 // Get collaborators for the active board (owner or admin collaborator can see this list)
 $collaborators = [];
 if ($active_board_id > 0 && $board_details && ($current_user_permission_on_active_board == 'owner' || $current_user_permission_on_active_board == 'admin')) {
-    $sql_create_table_collab = "CREATE TABLE IF NOT EXISTS Planotajs_Collaborators (
+    $sql_create_table_collab = "CREATE TABLE IF NOT EXISTS Planner_Collaborators (
         collaboration_id INT AUTO_INCREMENT PRIMARY KEY,
         board_id INT NOT NULL,
         user_id INT NOT NULL,
         permission_level ENUM('view', 'edit', 'admin') NOT NULL DEFAULT 'view',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (board_id) REFERENCES Planotajs_Boards(board_id) ON DELETE CASCADE,
-        FOREIGN KEY (user_id) REFERENCES Planotajs_Users(user_id) ON DELETE CASCADE,
+        FOREIGN KEY (board_id) REFERENCES Planner_Boards(board_id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES Planner_Users(user_id) ON DELETE CASCADE,
         UNIQUE KEY (board_id, user_id)
     )";
     $connection->query($sql_create_table_collab);
     
     $sql_collaborators = "SELECT c.collaboration_id, c.user_id as collaborator_user_id, c.permission_level, u.username, u.email
-                         FROM Planotajs_Collaborators c
-                         JOIN Planotajs_Users u ON c.user_id = u.user_id
+                         FROM Planner_Collaborators c
+                         JOIN Planner_Users u ON c.user_id = u.user_id
                          WHERE c.board_id = ?";
     $stmt_collaborators = $connection->prepare($sql_collaborators);
     $stmt_collaborators->bind_param("i", $active_board_id);
@@ -208,7 +208,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
             if (!empty($board_name)) {
                 // Only the board owner can truly "own" and update the core record like this
                 // An admin collaborator updates fields, but the user_id owner remains.
-                $sql_update = "UPDATE Planotajs_Boards SET 
+                $sql_update = "UPDATE Planner_Boards SET 
                                board_name = ?, board_description = ?, tags = ?, updated_at = CURRENT_TIMESTAMP
                                WHERE board_id = ? AND user_id = ?"; // Check against actual board owner
                 $stmt_update = $connection->prepare($sql_update);
@@ -218,7 +218,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
                     $message = "Project settings updated successfully!";
                     log_and_notify($connection, $active_board_id, $user_id, 'settings_updated', "Project settings for \"{$board_name}\" were updated by " . $_SESSION['username'] . ".", null, null, get_board_associated_user_ids($connection, $active_board_id));
                     // Refresh $board_details and $owned_boards / $shared_boards (if name changed)
-                    $sql_details_refresh = "SELECT * FROM Planotajs_Boards WHERE board_id = ? AND is_deleted = 0";
+                    $sql_details_refresh = "SELECT * FROM Planner_Boards WHERE board_id = ? AND is_deleted = 0";
                     $stmt_details_refresh = $connection->prepare($sql_details_refresh);
                     $stmt_details_refresh->bind_param("i", $active_board_id);
                     $stmt_details_refresh->execute();
@@ -238,8 +238,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
             $collaboration_id_to_remove = (int)$_POST['collaboration_id'];
             
             $sql_get_target_collab = "SELECT c.user_id as target_user_id, c.permission_level as target_permission_level, u.username as target_username, u.email as target_email
-                                      FROM Planotajs_Collaborators c
-                                      JOIN Planotajs_Users u ON c.user_id = u.user_id
+                                      FROM Planner_Collaborators c
+                                      JOIN Planner_Users u ON c.user_id = u.user_id
                                       WHERE c.collaboration_id = ? AND c.board_id = ?";
             $stmt_get_target = $connection->prepare($sql_get_target_collab);
             $stmt_get_target->bind_param("ii", $collaboration_id_to_remove, $active_board_id);
@@ -267,7 +267,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
             } else { $error = "Collaborator not found for removal."; }
 
             if ($can_remove) {
-                $sql_remove = "DELETE FROM Planotajs_Collaborators WHERE collaboration_id = ? AND board_id = ?"; 
+                $sql_remove = "DELETE FROM Planner_Collaborators WHERE collaboration_id = ? AND board_id = ?"; 
                 $stmt_remove = $connection->prepare($sql_remove); 
                 $stmt_remove->bind_param("ii", $collaboration_id_to_remove, $active_board_id);
                 if ($stmt_remove->execute()) {
@@ -291,8 +291,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
 
             if (in_array($new_permission_level, $valid_permissions)) {
                 $sql_get_target_collab_perm = "SELECT c.user_id as target_user_id, c.permission_level as current_target_permission, u.username as target_username, u.email as target_email
-                                           FROM Planotajs_Collaborators c
-                                           JOIN Planotajs_Users u ON c.user_id = u.user_id
+                                           FROM Planner_Collaborators c
+                                           JOIN Planner_Users u ON c.user_id = u.user_id
                                            WHERE c.collaboration_id = ? AND c.board_id = ?";
                 $stmt_get_target_perm = $connection->prepare($sql_get_target_collab_perm);
                 $stmt_get_target_perm->bind_param("ii", $collaboration_id_to_update, $active_board_id);
@@ -320,7 +320,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
                 } else { $error = "Collaborator not found for permission update."; }
 
                 if ($can_update_permission) {
-                    $sql_update_permission = "UPDATE Planotajs_Collaborators SET permission_level = ? WHERE collaboration_id = ? AND board_id = ?";
+                    $sql_update_permission = "UPDATE Planner_Collaborators SET permission_level = ? WHERE collaboration_id = ? AND board_id = ?";
                     $stmt_update_permission_db = $connection->prepare($sql_update_permission); // Renamed to avoid conflict
                     $stmt_update_permission_db->bind_param("sii", $new_permission_level, $collaboration_id_to_update, $active_board_id);
                     if ($stmt_update_permission_db->execute()) {
@@ -361,7 +361,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
         $sql_update_assignments = [];
         foreach ($sql_upsert_fields_array as $field) { $sql_update_assignments[] = "`$field` = VALUES(`$field`)"; }
         $sql_update_set = implode(", ", $sql_update_assignments);
-        $sql_upsert = "INSERT INTO Planotajs_NotificationSettings (`user_id`, `board_id`, $sql_upsert_fields_string) 
+        $sql_upsert = "INSERT INTO Planner_NotificationSettings (`user_id`, `board_id`, $sql_upsert_fields_string) 
                        VALUES (?, ?, $sql_upsert_placeholders) 
                        ON DUPLICATE KEY UPDATE $sql_update_set, `updated_at` = CURRENT_TIMESTAMP";
         $stmt_upsert = $connection->prepare($sql_upsert);
@@ -384,17 +384,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
             if ($current_user_permission_on_active_board == 'owner') {
                 $board_name_to_log = $board_details['board_name']; // Cache before potential deletion changes it
                 if ($action_key === 'archive_project') {
-                    $sql_danger = "UPDATE Planotajs_Boards SET is_archived = 1, updated_at = CURRENT_TIMESTAMP WHERE board_id = ? AND user_id = ?";
+                    $sql_danger = "UPDATE Planner_Boards SET is_archived = 1, updated_at = CURRENT_TIMESTAMP WHERE board_id = ? AND user_id = ?";
                     $stmt_danger = $connection->prepare($sql_danger); $stmt_danger->bind_param("ii", $active_board_id, $user_id);
                     if ($stmt_danger->execute()) { $message = "Project archived successfully!"; log_and_notify($connection, $active_board_id, $user_id, 'project_archived', "Project \"{$board_name_to_log}\" was archived.", null, null, get_board_associated_user_ids($connection, $active_board_id));} 
                     else { $error = "Error archiving project: " . $connection->error; } $stmt_danger->close();
                 } elseif ($action_key === 'unarchive_project') {
-                    $sql_danger = "UPDATE Planotajs_Boards SET is_archived = 0, updated_at = CURRENT_TIMESTAMP WHERE board_id = ? AND user_id = ?";
+                    $sql_danger = "UPDATE Planner_Boards SET is_archived = 0, updated_at = CURRENT_TIMESTAMP WHERE board_id = ? AND user_id = ?";
                     $stmt_danger = $connection->prepare($sql_danger); $stmt_danger->bind_param("ii", $active_board_id, $user_id);
                      if ($stmt_danger->execute()) { $message = "Project unarchived successfully!"; log_and_notify($connection, $active_board_id, $user_id, 'project_unarchived', "Project \"{$board_name_to_log}\" was unarchived.", null, null, get_board_associated_user_ids($connection, $active_board_id));}
                     else { $error = "Error unarchiving project: " . $connection->error; } $stmt_danger->close();
                 } elseif ($action_key === 'delete_project') {
-                    $sql_danger = "UPDATE Planotajs_Boards SET is_deleted = 1, updated_at = CURRENT_TIMESTAMP WHERE board_id = ? AND user_id = ?";
+                    $sql_danger = "UPDATE Planner_Boards SET is_deleted = 1, updated_at = CURRENT_TIMESTAMP WHERE board_id = ? AND user_id = ?";
                     $stmt_danger = $connection->prepare($sql_danger); $stmt_danger->bind_param("ii", $active_board_id, $user_id);
                     if ($stmt_danger->execute()) { 
                         log_and_notify($connection, $active_board_id, $user_id, 'project_deleted', "Project \"{$board_name_to_log}\" was deleted.", null, null, []); // Notify no one for deletion? Or just owner via a different mechanism?
@@ -415,7 +415,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
             if (!($board_details['is_archived'] ?? 0)) { // Cannot leave an archived project via this UI maybe? Or allow? For now, disallow.
                 
                 // Get current user's username for logging
-                $stmt_leaver_username = $connection->prepare("SELECT username FROM Planotajs_Users WHERE user_id = ?");
+                $stmt_leaver_username = $connection->prepare("SELECT username FROM Planner_Users WHERE user_id = ?");
                 $leaver_username = "User ID " . $user_id; // Fallback
                 if($stmt_leaver_username) {
                     $stmt_leaver_username->bind_param("i", $user_id);
@@ -428,7 +428,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
                 }
 
 
-                $sql_leave = "DELETE FROM Planotajs_Collaborators WHERE board_id = ? AND user_id = ?";
+                $sql_leave = "DELETE FROM Planner_Collaborators WHERE board_id = ? AND user_id = ?";
                 $stmt_leave = $connection->prepare($sql_leave);
                 if ($stmt_leave) {
                     $stmt_leave->bind_param("ii", $active_board_id, $user_id);
@@ -679,8 +679,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
                 $pending_invitations = [];
                 if ($active_board_id > 0 && $board_details && ($current_user_permission_on_active_board == 'owner' || $current_user_permission_on_active_board == 'admin') ) {
                     $sql_pending = "SELECT i.invitation_id, i.permission_level, i.custom_message, i.created_at, u.username as invited_username, u.email as invited_email
-                                    FROM Planotajs_Invitations i
-                                    JOIN Planotajs_Users u ON i.invited_user_id = u.user_id
+                                    FROM Planner_Invitations i
+                                    JOIN Planner_Users u ON i.invited_user_id = u.user_id
                                     WHERE i.board_id = ? AND i.status = 'pending'";
                     $stmt_pending = $connection->prepare($sql_pending);
                     $stmt_pending->bind_param("i", $active_board_id);
@@ -821,8 +821,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
                     </div>
                 </div>
                 <?php
-                // Ensure Planotajs_ActivityLog table exists
-                $sql_create_activity_table = "CREATE TABLE IF NOT EXISTS Planotajs_ActivityLog (
+                // Ensure Planner_ActivityLog table exists
+                $sql_create_activity_table = "CREATE TABLE IF NOT EXISTS Planner_ActivityLog (
                     activity_id INT AUTO_INCREMENT PRIMARY KEY, 
                     board_id INT NOT NULL, 
                     user_id INT NOT NULL, 
@@ -831,16 +831,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
                     related_entity_id INT NULL, 
                     related_entity_type VARCHAR(50) NULL, 
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
-                    FOREIGN KEY (board_id) REFERENCES Planotajs_Boards(board_id) ON DELETE CASCADE, 
-                    FOREIGN KEY (user_id) REFERENCES Planotajs_Users(user_id) ON DELETE CASCADE
+                    FOREIGN KEY (board_id) REFERENCES Planner_Boards(board_id) ON DELETE CASCADE, 
+                    FOREIGN KEY (user_id) REFERENCES Planner_Users(user_id) ON DELETE CASCADE
                 )";
                 $connection->query($sql_create_activity_table);
 
                 $activities = [];
                 if ($active_board_id > 0) { // Check if a board is active
                     $sql_activities_fetch = "SELECT a.*, u.username 
-                                       FROM Planotajs_ActivityLog a 
-                                       JOIN Planotajs_Users u ON a.user_id = u.user_id 
+                                       FROM Planner_ActivityLog a 
+                                       JOIN Planner_Users u ON a.user_id = u.user_id 
                                        WHERE a.board_id = ? 
                                        ORDER BY a.created_at DESC LIMIT 50"; // Renamed variable
                     $stmt_activities_fetch = $connection->prepare($sql_activities_fetch);

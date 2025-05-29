@@ -23,8 +23,8 @@ try {
     // 1. Fetch invitation details AND board owner ID
     $fetch_invite_sql = "SELECT i.board_id, i.inviter_user_id, i.invited_user_id, i.permission_level, 
                                 b.user_id as board_owner_id, b.board_name 
-                         FROM Planotajs_Invitations i
-                         JOIN Planotajs_Boards b ON i.board_id = b.board_id
+                         FROM Planner_Invitations i
+                         JOIN Planner_Boards b ON i.board_id = b.board_id
                          WHERE i.invitation_id = ? AND i.status = 'pending'";
     $stmt_fetch = $connection->prepare($fetch_invite_sql);
     if (!$stmt_fetch) throw new Exception("DB Error (fi_prep): " . $connection->error);
@@ -50,7 +50,7 @@ try {
     // *** CRITICAL PREVENTION STEP ***
     if ($current_user_id == $board_owner_id) {
         // User accepting is already the owner. Silently acknowledge.
-        $update_invite_sql_silent = "UPDATE Planotajs_Invitations SET status = 'accepted_owner', updated_at = CURRENT_TIMESTAMP WHERE invitation_id = ?";
+        $update_invite_sql_silent = "UPDATE Planner_Invitations SET status = 'accepted_owner', updated_at = CURRENT_TIMESTAMP WHERE invitation_id = ?";
         $stmt_update_silent = $connection->prepare($update_invite_sql_silent);
         if ($stmt_update_silent) {
             $stmt_update_silent->bind_param("i", $invitation_id);
@@ -58,7 +58,7 @@ try {
             $stmt_update_silent->close();
         }
         // Mark notification as read for the owner
-        $mark_notif_read_sql_owner = "UPDATE Planotajs_Notifications SET is_read = 1 WHERE user_id = ? AND type = 'invitation' AND related_entity_type = 'invitation' AND related_entity_id = ?";
+        $mark_notif_read_sql_owner = "UPDATE Planner_Notifications SET is_read = 1 WHERE user_id = ? AND type = 'invitation' AND related_entity_type = 'invitation' AND related_entity_id = ?";
         $stmt_mark_read_owner = $connection->prepare($mark_notif_read_sql_owner);
         if ($stmt_mark_read_owner) {
             $stmt_mark_read_owner->bind_param("ii", $current_user_id, $invitation_id);
@@ -71,8 +71,8 @@ try {
         exit();
     }
 
-    // 2. Add to Planotajs_Collaborators (or update if they were previously a collaborator with a different role from a past invite)
-    $add_collab_sql = "INSERT INTO Planotajs_Collaborators (board_id, user_id, permission_level) 
+    // 2. Add to Planner_Collaborators (or update if they were previously a collaborator with a different role from a past invite)
+    $add_collab_sql = "INSERT INTO Planner_Collaborators (board_id, user_id, permission_level) 
                        VALUES (?, ?, ?)
                        ON DUPLICATE KEY UPDATE permission_level = VALUES(permission_level), updated_at = CURRENT_TIMESTAMP";
     $stmt_add_collab = $connection->prepare($add_collab_sql);
@@ -86,7 +86,7 @@ try {
     $stmt_add_collab->close();
 
     // 3. Update invitation status to 'accepted'
-    $update_invite_sql = "UPDATE Planotajs_Invitations SET status = 'accepted', updated_at = CURRENT_TIMESTAMP WHERE invitation_id = ?";
+    $update_invite_sql = "UPDATE Planner_Invitations SET status = 'accepted', updated_at = CURRENT_TIMESTAMP WHERE invitation_id = ?";
     $stmt_update_invite = $connection->prepare($update_invite_sql);
     if (!$stmt_update_invite) throw new Exception("DB Error (ui_prep): " . $connection->error);
     $stmt_update_invite->bind_param("i", $invitation_id);
@@ -96,7 +96,7 @@ try {
     $stmt_update_invite->close();
 
     // 4. Mark the original invitation notification (sent to current_user_id) as read
-    $mark_notif_read_sql = "UPDATE Planotajs_Notifications 
+    $mark_notif_read_sql = "UPDATE Planner_Notifications 
                             SET is_read = 1 
                             WHERE user_id = ? 
                               AND type = 'invitation' 

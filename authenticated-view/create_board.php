@@ -28,7 +28,7 @@ if (empty($board_name)) {
 }
 
 // Insert new board into database
-$sql = "INSERT INTO Planotajs_Boards (user_id, board_name, board_type) VALUES (?, ?, ?)";
+$sql = "INSERT INTO Planner_Boards (user_id, board_name, board_type) VALUES (?, ?, ?)";
 $stmt = $connection->prepare($sql);
 $stmt->bind_param("iss", $user_id, $board_name, $board_type);
 
