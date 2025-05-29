@@ -7,64 +7,6 @@ if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
 
-// Create a debugging function
-function debug_chat_issues() {
-    global $connection, $user_id, $board_id;
-    
-    echo '<div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-6" role="alert">';
-    echo '<h3 class="font-bold">Debug Information:</h3>';
-    
-    // Check if user is logged in
-    echo '<p>User ID: ' . (isset($_SESSION['user_id']) ? $_SESSION['user_id'] : 'Not logged in') . '</p>';
-    
-    // Check board_id parameter
-    echo '<p>Board ID from URL: ' . (isset($_GET['board_id']) ? $_GET['board_id'] : 'Not provided') . '</p>';
-    echo '<p>Parsed Board ID: ' . (isset($board_id) ? $board_id : 'Not set') . '</p>';
-    
-    // If board_id exists, check board existence
-    if (isset($board_id) && $board_id > 0) {
-        $board_sql = "SELECT board_id, board_name, user_id, is_deleted FROM Planner_Boards WHERE board_id = ?";
-        $board_stmt = $connection->prepare($board_sql);
-        $board_stmt->bind_param("i", $board_id);
-        $board_stmt->execute();
-        $board_result = $board_stmt->get_result();
-        
-        if ($board_result->num_rows > 0) {
-            $board = $board_result->fetch_assoc();
-            echo '<p>Board exists: Yes</p>';
-            echo '<p>Board name: ' . htmlspecialchars($board['board_name']) . '</p>';
-            echo '<p>Board owner ID: ' . $board['user_id'] . '</p>';
-            echo '<p>Board is_deleted: ' . ($board['is_deleted'] ? 'Yes (Problem!)' : 'No') . '</p>';
-            
-            // Check if current user is owner
-            $is_owner = ($board['user_id'] == $user_id);
-            echo '<p>Current user is owner: ' . ($is_owner ? 'Yes' : 'No') . '</p>';
-            
-            // If not owner, check if collaborator
-            if (!$is_owner) {
-                $collab_sql = "SELECT permission_level FROM Planner_Collaborators 
-                              WHERE board_id = ? AND user_id = ?";
-                $collab_stmt = $connection->prepare($collab_sql);
-                $collab_stmt->bind_param("ii", $board_id, $user_id);
-                $collab_stmt->execute();
-                $collab_result = $collab_stmt->get_result();
-                
-                if ($collab_result->num_rows > 0) {
-                    $collab = $collab_result->fetch_assoc();
-                    echo '<p>User is collaborator: Yes (Permission: ' . $collab['permission_level'] . ')</p>';
-                } else {
-                    echo '<p>User is collaborator: No (Problem!)</p>';
-                }
-                $collab_stmt->close();
-            }
-        } else {
-            echo '<p><strong>Board does not exist in database!</strong></p>';
-        }
-        $board_stmt->close();
-    }
-    
-    echo '</div>';
-}
 
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
@@ -77,9 +19,6 @@ require_once '../admin/database/connection.php';
 
 $user_id = $_SESSION['user_id'];
 $board_id = isset($_GET['board_id']) ? intval($_GET['board_id']) : 0;
-
-// Call the debug function to display diagnostic information
-debug_chat_issues();
 
 // Update page title if board_id is valid
 if ($board_id > 0) {
