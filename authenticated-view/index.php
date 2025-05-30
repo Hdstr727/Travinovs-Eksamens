@@ -58,9 +58,11 @@ $my_tasks_result = $my_tasks_stmt->get_result()->fetch_assoc();
 $my_tasks_created_count = $my_tasks_result ? $my_tasks_result['count'] : 0;
 $my_tasks_stmt->close();
 
-// --- Upcoming Deadlines ---
+// --- Upcoming Deadlines (Refined for "My Tasks or Unassigned") ---
 $today = date('Y-m-d');
 $seven_days_later = date('Y-m-d', strtotime('+7 days'));
+
+// Board access subquery remains the same, as we still need to know which boards the user can see
 $board_access_subquery_archived_filter_direct = "";
 $board_access_subquery_archived_filter_collab_alias = "";
 if (!$show_archived) {
@@ -72,26 +74,50 @@ $board_access_subquery = "
     UNION
     SELECT c.board_id FROM Planner_Collaborators c JOIN Planner_Boards b_collab ON c.board_id = b_collab.board_id WHERE c.user_id = ? AND b_collab.is_deleted = 0 {$board_access_subquery_archived_filter_collab_alias}
 ";
+
 $total_upcoming_deadlines_count = 0;
-$count_deadlines_sql = "SELECT COUNT(DISTINCT t.task_id) as count FROM Planner_Tasks t JOIN Planner_Boards b_main ON t.board_id = b_main.board_id WHERE t.is_deleted = 0 AND t.is_completed = 0 AND b_main.is_deleted = 0 " . ($show_archived ? "" : "AND b_main.is_archived = 0") . " AND DATE(t.due_date) BETWEEN ? AND ? AND t.board_id IN ({$board_access_subquery})";
+// MODIFIED SQL for counting deadlines: Added (t.assigned_to_user_id = ? OR t.assigned_to_user_id IS NULL)
+$count_deadlines_sql = "SELECT COUNT(DISTINCT t.task_id) as count 
+                        FROM Planner_Tasks t 
+                        JOIN Planner_Boards b_main ON t.board_id = b_main.board_id 
+                        WHERE t.is_deleted = 0 AND t.is_completed = 0 AND b_main.is_deleted = 0 " . ($show_archived ? "" : "AND b_main.is_archived = 0") . " 
+                        AND DATE(t.due_date) BETWEEN ? AND ? 
+                        AND (t.assigned_to_user_id = ? OR t.assigned_to_user_id IS NULL) -- Show tasks assigned to me OR unassigned
+                        AND t.board_id IN ({$board_access_subquery})";
 $count_deadlines_stmt = $connection->prepare($count_deadlines_sql);
 if ($count_deadlines_stmt) {
-    $count_deadlines_stmt->bind_param("ssii", $today, $seven_days_later, $user_id, $user_id); $count_deadlines_stmt->execute();
+    // Added $user_id for the new assignment check placeholder
+    $count_deadlines_stmt->bind_param("ssiii", $today, $seven_days_later, $user_id, $user_id, $user_id); 
+    $count_deadlines_stmt->execute();
     $count_deadlines_result = $count_deadlines_stmt->get_result()->fetch_assoc();
-    if ($count_deadlines_result) { $total_upcoming_deadlines_count = $count_deadlines_result['count']; }
+    if ($count_deadlines_result) { $total_upcoming_deadlines_count = (int)$count_deadlines_result['count']; }
     $count_deadlines_stmt->close();
-} else { error_log("Failed to prepare statement for total upcoming deadlines count: " . $connection->error); }
+} else { error_log("Dashboard: Failed to prepare statement for total upcoming deadlines count: " . $connection->error); }
 
 $upcoming_tasks_details = [];
-$details_deadlines_sql = "SELECT t.task_id, t.task_name, t.due_date, t.board_id, b.board_name, b.is_archived as board_is_archived FROM Planner_Tasks t JOIN Planner_Boards b ON t.board_id = b.board_id WHERE t.is_deleted = 0 AND t.is_completed = 0 AND b.is_deleted = 0 " . ($show_archived ? "" : "AND b.is_archived = 0") . " AND DATE(t.due_date) BETWEEN ? AND ? AND t.board_id IN ({$board_access_subquery}) ORDER BY t.due_date ASC, CASE t.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END ASC LIMIT 5";
+// MODIFIED SQL for fetching deadline details: Added (t.assigned_to_user_id = ? OR t.assigned_to_user_id IS NULL)
+$details_deadlines_sql = "SELECT t.task_id, t.task_name, t.due_date, t.board_id, t.assigned_to_user_id, 
+                                 b.board_name, b.is_archived as board_is_archived,
+                                 u_assigned.username as assigned_username
+                          FROM Planner_Tasks t 
+                          JOIN Planner_Boards b ON t.board_id = b.board_id 
+                          LEFT JOIN Planner_Users u_assigned ON t.assigned_to_user_id = u_assigned.user_id
+                          WHERE t.is_deleted = 0 AND t.is_completed = 0 AND b.is_deleted = 0 " . ($show_archived ? "" : "AND b.is_archived = 0") . " 
+                          AND DATE(t.due_date) BETWEEN ? AND ? 
+                          AND (t.assigned_to_user_id = ? OR t.assigned_to_user_id IS NULL) -- Show tasks assigned to me OR unassigned
+                          AND t.board_id IN ({$board_access_subquery}) 
+                          ORDER BY t.due_date ASC, CASE t.priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 ELSE 4 END ASC 
+                          LIMIT 5";
 $details_deadlines_stmt = $connection->prepare($details_deadlines_sql);
 if ($details_deadlines_stmt) {
-    $details_deadlines_stmt->bind_param("ssii", $today, $seven_days_later, $user_id, $user_id); $details_deadlines_stmt->execute();
+    // Added $user_id for the new assignment check placeholder
+    $details_deadlines_stmt->bind_param("ssiii", $today, $seven_days_later, $user_id, $user_id, $user_id); 
+    $details_deadlines_stmt->execute();
     $details_deadlines_result = $details_deadlines_stmt->get_result();
     while ($task = $details_deadlines_result->fetch_assoc()) { $upcoming_tasks_details[] = $task; }
     $details_deadlines_stmt->close();
-} else { error_log("Failed to prepare statement for upcoming deadline details: " . $connection->error); }
-$upcoming_deadlines_display_count = $total_upcoming_deadlines_count;
+} else { error_log("Dashboard: Failed to prepare statement for upcoming deadline details: " . $connection->error); }
+
 
 $username = $user['username'] ?? ($_SESSION['username'] ?? 'User');
 $db_profile_picture_path = $user['profile_picture'] ?? null;
@@ -307,24 +333,62 @@ if (!empty($accessible_board_ids)) {
             </div>
         </div>
               
+        <!-- Upcoming Deadlines Section (MODIFIED HTML DISPLAY) -->
         <div class="mb-8">
-            <h3 class="text-xl font-semibold text-gray-700 mb-4">Upcoming Deadlines</h3>
+            <h3 class="text-xl font-semibold text-gray-700 mb-4">Your Upcoming Deadlines</h3>
             <div class="bg-white p-6 rounded-lg shadow-md card">
                 <div class="space-y-3">
-                    <?php if ($upcoming_deadlines_display_count > 0): ?>
-                        <p class="text-sm text-gray-700 font-medium">You have <?php echo $upcoming_deadlines_display_count; ?> task(s) due in the next 7 days<?php if (!$show_archived) echo " on active boards"; ?>.<?php if (count($upcoming_tasks_details) < $upcoming_deadlines_display_count && count($upcoming_tasks_details) > 0): ?><span class="text-xs">(Showing the soonest <?php echo count($upcoming_tasks_details); ?>)</span><?php endif; ?></p>
+                    <?php if ($total_upcoming_deadlines_count > 0): ?>
+                        <p class="text-sm text-gray-700 font-medium">You have <?php echo $total_upcoming_deadlines_count; ?> task(s) (assigned to you or unassigned) due in the next 7 days<?php if (!$show_archived) echo " on active projects"; ?>.
+                        <?php if (count($upcoming_tasks_details) < $total_upcoming_deadlines_count && count($upcoming_tasks_details) > 0): ?>
+                            <span class="text-xs">(Showing the soonest <?php echo count($upcoming_tasks_details); ?>)</span>
+                        <?php endif; ?>
+                        </p>
                         <?php if (!empty($upcoming_tasks_details)): ?>
                             <ul class="list-disc list-inside space-y-2 text-sm">
-                                <?php foreach ($upcoming_tasks_details as $task): ?>
-                                    <?php $due_date_obj = new DateTime($task['due_date']); $formatted_due_date = $due_date_obj->format('M j'); $days_until_due = (strtotime(date('Y-m-d', strtotime($task['due_date']))) - strtotime(date('Y-m-d'))) / (60 * 60 * 24); $urgency_class = ''; if ($days_until_due < 0) { $urgency_class = 'text-red-600 font-semibold'; } elseif ($days_until_due < 2) { $urgency_class = 'text-red-500'; } elseif ($days_until_due < 4) { $urgency_class = 'text-orange-500'; } $task_board_is_archived = $task['board_is_archived'] ?? 0; ?>
-                                    <li class="text-gray-600 hover:text-[#e63946] <?php echo $task_board_is_archived ? 'opacity-75' : ''; ?>"><a href="kanban.php?board_id=<?php echo htmlspecialchars($task['board_id']); ?>#task-<?php echo htmlspecialchars($task['task_id']); ?>" title="Board: <?php echo htmlspecialchars($task['board_name']); ?>. Due: <?php echo $due_date_obj->format('Y-m-d'); ?>"><span class="<?php echo $urgency_class; ?>">[<?php echo $formatted_due_date; ?>]</span> <?php echo htmlspecialchars($task['task_name']); ?> <span class="text-xs text-gray-400 italic">(<?php echo htmlspecialchars($task['board_name']); ?>)</span><?php if ($task_board_is_archived): ?><span class="text-xs text-gray-400 italic">(Archived Board)</span><?php endif; ?></a></li>
+                                <?php foreach ($upcoming_tasks_details as $task_deadline): 
+                                    $due_date_obj = new DateTime($task_deadline['due_date']); 
+                                    $formatted_due_date = $due_date_obj->format('M j'); 
+                                    $days_until_due = (strtotime(date('Y-m-d', strtotime($task_deadline['due_date']))) - strtotime(date('Y-m-d'))) / (60 * 60 * 24); 
+                                    $urgency_class = ''; 
+                                    if ($days_until_due < 0) { $urgency_class = 'text-red-600 font-semibold'; } 
+                                    elseif ($days_until_due < 2) { $urgency_class = 'text-red-500'; } 
+                                    elseif ($days_until_due < 4) { $urgency_class = 'text-orange-500'; } 
+                                    $task_board_is_archived = $task_deadline['board_is_archived'] ?? 0; 
+                                    $assignee_display = '';
+                                    if ($task_deadline['assigned_to_user_id']) {
+                                        if ($task_deadline['assigned_to_user_id'] == $user_id) {
+                                            // Optionally, don't show avatar if it's "me" or use a specific "me" indicator
+                                            // $assignee_display = '<span class="assignee-avatar-sm" title="Assigned to You">ME</span>';
+                                        } elseif ($task_deadline['assigned_username']) {
+                                            $assignee_initials = strtoupper(substr($task_deadline['assigned_username'], 0, 1) . (strlen($task_deadline['assigned_username']) > 1 && strpos($task_deadline['assigned_username'], ' ') ? substr(strstr($task_deadline['assigned_username'], ' '), 1, 1) : ''));
+                                            if(strlen($assignee_initials) == 1 && strlen($task_deadline['assigned_username']) > 1) $assignee_initials .= strtoupper(substr($task_deadline['assigned_username'],1,1));
+                                            if(empty($assignee_initials)) $assignee_initials = "?";
+
+                                            $assignee_display = '<span class="assignee-avatar-sm" title="Assigned to '.htmlspecialchars($task_deadline['assigned_username']).'">' . $assignee_initials . '</span>';
+                                        }
+                                    } else {
+                                        $assignee_display = '<span class="text-xs text-gray-400 italic ml-1">(Unassigned)</span>';
+                                    }
+                                    ?>
+                                    <li class="text-gray-600 hover:text-[#e63946] <?php echo $task_board_is_archived ? 'opacity-75' : ''; ?>">
+                                        <a href="kanban.php?board_id=<?php echo htmlspecialchars($task_deadline['board_id']); ?>#task-<?php echo htmlspecialchars($task_deadline['task_id']); ?>" title="Project: <?php echo htmlspecialchars($task_deadline['board_name']); ?>. Due: <?php echo $due_date_obj->format('Y-m-d'); ?>">
+                                            <span class="<?php echo $urgency_class; ?>">[<?php echo $formatted_due_date; ?>]</span> <?php echo htmlspecialchars($task_deadline['task_name']); ?> 
+                                            <?= $assignee_display ?>
+                                            <span class="text-xs text-gray-400 italic">(<?php echo htmlspecialchars($task_deadline['board_name']); ?>)</span>
+                                            <?php if ($task_board_is_archived): ?><span class="text-xs text-gray-400 italic">(Archived Project)</span><?php endif; ?>
+                                        </a>
+                                    </li>
                                 <?php endforeach; ?>
                             </ul>
                         <?php endif; ?>
-                    <?php else: ?><p class="text-sm text-gray-500">No upcoming deadlines in the next 7 days<?php if (!$show_archived) echo " on active boards"; ?>. Great job!</p><?php endif; ?>
+                    <?php else: ?>
+                        <p class="text-sm text-gray-500">No upcoming deadlines for your tasks or unassigned tasks in the next 7 days<?php if (!$show_archived) echo " on active projects"; ?>.</p>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
+
 
         <div class="mb-8">
             <h3 class="text-xl font-semibold text-gray-700 mb-4">Recent Activity (Last <?= $limit_recent_activities ?> items)</h3>
