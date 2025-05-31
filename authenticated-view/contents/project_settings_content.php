@@ -376,37 +376,95 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
         } else { $error = "Error preparing notification settings update: " . $connection->error; }
     }
     
-    // Archive/Unarchive/Delete Project (OWNER ONLY)
-    $danger_zone_actions = ['archive_project', 'unarchive_project', 'delete_project'];
-    foreach($danger_zone_actions as $action_key) {
+     // --- DANGER ZONE ACTIONS (Archive, Unarchive) ---
+    $danger_zone_actions_non_delete = ['archive_project', 'unarchive_project'];
+    foreach($danger_zone_actions_non_delete as $action_key) {
         if (isset($_POST[$action_key])) {
             $redirect_to_hash = "#advanced";
             if ($current_user_permission_on_active_board == 'owner') {
-                $board_name_to_log = $board_details['board_name']; // Cache before potential deletion changes it
+                $board_name_to_log = $board_details['board_name']; 
+                
                 if ($action_key === 'archive_project') {
                     $sql_danger = "UPDATE Planner_Boards SET is_archived = 1, updated_at = CURRENT_TIMESTAMP WHERE board_id = ? AND user_id = ?";
-                    $stmt_danger = $connection->prepare($sql_danger); $stmt_danger->bind_param("ii", $active_board_id, $user_id);
-                    if ($stmt_danger->execute()) { $message = "Project archived successfully!"; log_and_notify($connection, $active_board_id, $user_id, 'project_archived', "Project \"{$board_name_to_log}\" was archived.", null, null, get_board_associated_user_ids($connection, $active_board_id));} 
-                    else { $error = "Error archiving project: " . $connection->error; } $stmt_danger->close();
+                    $stmt_danger = $connection->prepare($sql_danger); 
+                    if ($stmt_danger) {
+                        $stmt_danger->bind_param("ii", $active_board_id, $user_id);
+                        if ($stmt_danger->execute()) { 
+                            $message = "Project archived successfully!"; 
+                            log_and_notify($connection, $active_board_id, $user_id, 'project_archived', "Project \"{$board_name_to_log}\" was archived by " . $_SESSION['username'] . ".", null, null, get_board_associated_user_ids($connection, $active_board_id));
+                            $board_details['is_archived'] = 1; // Update local variable
+                        } else { $error = "Error archiving project: " . $stmt_danger->error; } 
+                        $stmt_danger->close();
+                    } else { $error = "Error preparing archive statement: " . $connection->error; }
+
                 } elseif ($action_key === 'unarchive_project') {
                     $sql_danger = "UPDATE Planner_Boards SET is_archived = 0, updated_at = CURRENT_TIMESTAMP WHERE board_id = ? AND user_id = ?";
-                    $stmt_danger = $connection->prepare($sql_danger); $stmt_danger->bind_param("ii", $active_board_id, $user_id);
-                     if ($stmt_danger->execute()) { $message = "Project unarchived successfully!"; log_and_notify($connection, $active_board_id, $user_id, 'project_unarchived', "Project \"{$board_name_to_log}\" was unarchived.", null, null, get_board_associated_user_ids($connection, $active_board_id));}
-                    else { $error = "Error unarchiving project: " . $connection->error; } $stmt_danger->close();
-                } elseif ($action_key === 'delete_project') {
-                    $sql_danger = "UPDATE Planner_Boards SET is_deleted = 1, updated_at = CURRENT_TIMESTAMP WHERE board_id = ? AND user_id = ?";
-                    $stmt_danger = $connection->prepare($sql_danger); $stmt_danger->bind_param("ii", $active_board_id, $user_id);
-                    if ($stmt_danger->execute()) { 
-                        log_and_notify($connection, $active_board_id, $user_id, 'project_deleted', "Project \"{$board_name_to_log}\" was deleted.", null, null, []); // Notify no one for deletion? Or just owner via a different mechanism?
-                        $_SESSION['settings_message'] = "Project '" . htmlspecialchars($board_name_to_log) . "' deleted successfully!"; 
-                        header("Location: project_settings.php"); exit(); // Redirect to main settings page
-                    } else { $error = "Error deleting project: " . $connection->error; } 
-                    $stmt_danger->close();
+                    $stmt_danger = $connection->prepare($sql_danger); 
+                     if ($stmt_danger) {
+                        $stmt_danger->bind_param("ii", $active_board_id, $user_id);
+                        if ($stmt_danger->execute()) { 
+                            $message = "Project unarchived successfully!"; 
+                            log_and_notify($connection, $active_board_id, $user_id, 'project_unarchived', "Project \"{$board_name_to_log}\" was unarchived by " . $_SESSION['username'] . ".", null, null, get_board_associated_user_ids($connection, $active_board_id));
+                            $board_details['is_archived'] = 0; // Update local variable
+                        } else { $error = "Error unarchiving project: " . $stmt_danger->error; } 
+                        $stmt_danger->close();
+                    } else { $error = "Error preparing unarchive statement: " . $connection->error; }
                 }
             } else { $error = "Only the project owner can perform this action."; }
-            break; // Process only one danger zone action
+            // No break here if you want to allow multiple non-delete danger zone actions,
+            // but typically only one form is submitted at a time.
+            // If these are separate forms, a break is fine.
+            // For now, assuming one action per POST.
+            break; 
         }
     }
+
+    // --- HANDLE DELETE PROJECT (from Modal) ---
+    // The hidden input name="delete_project" value="1" will be set by the modal's form.
+    if (isset($_POST['delete_project']) && isset($_POST['board_id_to_delete'])) {
+        $redirect_to_hash = ""; // Will redirect to project_settings.php without board_id on success
+        $board_id_to_actually_delete = (int)$_POST['board_id_to_delete'];
+        $confirmation_text_typed = $_POST['confirm_project_name'] ?? '';
+
+        // Ensure the board_id from the form matches the active_board_id context for safety
+        // and that the current user is the owner.
+        if ($board_id_to_actually_delete === $active_board_id && $current_user_permission_on_active_board == 'owner') {
+            if (!($board_details['is_archived'] ?? 0)) { 
+                // Server-side confirmation of the typed project name
+                if ($confirmation_text_typed === $board_details['board_name']) {
+                    $board_name_to_log = $board_details['board_name'];
+                    $sql_delete = "UPDATE Planner_Boards SET is_deleted = 1, updated_at = CURRENT_TIMESTAMP WHERE board_id = ? AND user_id = ?";
+                    $stmt_delete = $connection->prepare($sql_delete);
+                    if ($stmt_delete) {
+                        $stmt_delete->bind_param("ii", $board_id_to_actually_delete, $user_id); 
+                        if ($stmt_delete->execute()) {
+                            log_and_notify($connection, $board_id_to_actually_delete, $user_id, 'project_deleted', "Project \"{$board_name_to_log}\" was deleted by " . $_SESSION['username'] . ".", null, null, []);
+                            $_SESSION['settings_message'] = "Project '" . htmlspecialchars($board_name_to_log) . "' deleted successfully!";
+                            header("Location: project_settings.php"); 
+                            exit();
+                        } else { 
+                            $error = "Error deleting project: " . $stmt_delete->error; 
+                        }
+                        $stmt_delete->close();
+                    } else { $error = "Error preparing delete statement: " . $connection->error; }
+                } else {
+                    $error = "Project name confirmation did not match. Deletion cancelled.";
+                    $redirect_to_hash = "#advanced"; // Stay on advanced tab to show error with modal context
+                }
+            } else {
+                $error = "Project must be unarchived before deletion.";
+                $redirect_to_hash = "#advanced"; 
+            }
+        } else {
+            if ($board_id_to_actually_delete !== $active_board_id) {
+                 $error = "Board ID mismatch for deletion. Please try again.";
+            } else { // Not owner
+                 $error = "Only the project owner can delete the project.";
+            }
+            $redirect_to_hash = "#advanced";
+        }
+    }
+
 
     // --- HANDLE LEAVE PROJECT ---
     if (isset($_POST['leave_project_submit'])) {
@@ -790,14 +848,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
                             <?php if ($board_details['is_archived'] ?? 0): ?> <button type="submit" name="unarchive_project" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><i class="fas fa-undo"></i> Unarchive Project</button>
                             <?php else: ?> <button type="submit" name="archive_project" class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><i class="fas fa-archive"></i> Archive Project</button> <?php endif; ?>
                         </form>
-                        <form method="post" action="project_settings.php?board_id=<?= $active_board_id ?>" onsubmit="return confirm('Are you absolutely sure you want to delete this project? This action cannot be undone and will remove all associated data.');" class="inline-block">
-                            <button type="submit" name="delete_project" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center gap-2" <?= ($board_details['is_archived'] ?? 0) ? 'disabled title="Unarchive project first to delete"' : '' ?>><i class="fas fa-trash-alt"></i> Delete Project</button>
-                        </form>
+                        <!-- MODIFIED Delete Project Button -->
+                        <button type="button" 
+                                onclick="openDeleteProjectModal('<?= htmlspecialchars(addslashes($board_details['board_name']), ENT_QUOTES) ?>', <?= $active_board_id ?>)" 
+                                class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center gap-2" 
+                                <?= ($board_details['is_archived'] ?? 0) ? 'disabled title="Unarchive project first to delete"' : '' ?>>
+                            <i class="fas fa-trash-alt"></i> Delete Project
+                        </button>
                     </div>
                     <?php if ($board_details['is_archived'] ?? 0): ?><p class="text-sm text-yellow-700 mt-2">Note: To delete this project, you must unarchive it first.</p><?php endif; ?>
                 </div>
             </div>
             <?php endif; ?>
+
+            <!-- Delete Project Confirmation Modal -->
+            <div id="deleteProjectModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+                <div class="bg-white rounded-lg shadow-xl max-w-md w-full mx-auto">
+                    <div class="flex justify-between items-center border-b px-6 py-4">
+                        <h3 class="text-xl font-bold text-red-700">Delete Project</h3>
+                        <button onclick="closeDeleteProjectModal()" class="text-gray-500 hover:text-gray-700"><i class="fas fa-times"></i></button>
+                    </div>
+                    <form id="deleteProjectForm" method="post" action="project_settings.php"> 
+                        <div class="p-6 space-y-4">
+                            <p class="text-sm text-gray-700">
+                                This action is <strong class="font-semibold">irreversible</strong> and will permanently delete the project
+                                "<strong id="deleteProjectNameConfirm" class="font-semibold"></strong>", including all its columns, tasks, and associated data.
+                            </p>
+                            <p class="text-sm text-gray-700">
+                                To confirm deletion, please type the project name 
+                                "<strong id="deleteProjectNameType" class="font-semibold text-red-600"></strong>" in the box below.
+                            </p>
+                            <div>
+                                <label for="confirmProjectNameInput" class="sr-only">Confirm Project Name</label>
+                                <input type="text" id="confirmProjectNameInput" name="confirm_project_name"
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                                    placeholder="Type project name here">
+                                <p id="deleteErrorText" class="text-xs text-red-500 mt-1 hidden"></p>
+                            </div>
+                            <input type="hidden" name="board_id_to_delete" id="boardIdToDelete" value="">
+                            <input type="hidden" name="delete_project" value="1">
+                        </div>
+                        <div class="px-6 py-4 bg-gray-50 border-t flex justify-end space-x-3">
+                            <button type="button" onclick="closeDeleteProjectModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg">
+                                Cancel
+                            </button>
+                            <button type="submit" id="confirmDeleteProjectButton"
+                                    class="bg-red-600 text-white px-6 py-2 rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    disabled> 
+                                Delete Project
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
 
             <!-- Activity Log Tab (OWNER ONLY for now) -->
             <?php if ($current_user_permission_on_active_board == 'owner'): ?>

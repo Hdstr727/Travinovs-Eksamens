@@ -179,4 +179,96 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     });
+
+    const deleteProjectModal = document.getElementById('deleteProjectModal');
+    const deleteProjectForm = document.getElementById('deleteProjectForm');
+    const confirmProjectNameInput = document.getElementById('confirmProjectNameInput');
+    const confirmDeleteProjectButton = document.getElementById('confirmDeleteProjectButton');
+    const deleteProjectNameConfirmSpan = document.getElementById('deleteProjectNameConfirm');
+    const deleteProjectNameTypeSpan = document.getElementById('deleteProjectNameType');
+    const boardIdToDeleteInput = document.getElementById('boardIdToDelete');
+    const deleteErrorText = document.getElementById('deleteErrorText');
+
+    let expectedProjectNameToDelete = "";
+
+    window.openDeleteProjectModal = function(boardName, boardId) {
+        if (deleteProjectModal && boardName && boardId) {
+            expectedProjectNameToDelete = boardName;
+            if (deleteProjectNameConfirmSpan) deleteProjectNameConfirmSpan.textContent = boardName;
+            if (deleteProjectNameTypeSpan) deleteProjectNameTypeSpan.textContent = boardName;
+            if (boardIdToDeleteInput) boardIdToDeleteInput.value = boardId;
+            if (deleteProjectForm) deleteProjectForm.action = `project_settings.php?board_id=${boardId}`; // Keep action pointing to current page context
+
+            if (confirmProjectNameInput) confirmProjectNameInput.value = ''; // Clear input
+            if (confirmDeleteProjectButton) confirmDeleteProjectButton.disabled = true; // Disable button
+            if (deleteErrorText) {
+                deleteErrorText.classList.add('hidden');
+                deleteErrorText.textContent = '';
+            }
+            
+            deleteProjectModal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden'; // Prevent background scroll
+        } else {
+            console.error("Delete project modal elements not found or missing parameters.");
+        }
+    }
+
+    window.closeDeleteProjectModal = function() {
+        if (deleteProjectModal) {
+            deleteProjectModal.classList.add('hidden');
+            document.body.style.overflow = '';
+        }
+    }
+
+    if (deleteProjectModal) {
+        // Close modal on backdrop click
+        deleteProjectModal.addEventListener('click', function(event) {
+            if (event.target === this) {
+                closeDeleteProjectModal();
+            }
+        });
+    }
+
+    if (confirmProjectNameInput && confirmDeleteProjectButton) {
+        confirmProjectNameInput.addEventListener('input', function() {
+            if (this.value === expectedProjectNameToDelete) {
+                confirmDeleteProjectButton.disabled = false;
+                if (deleteErrorText) deleteErrorText.classList.add('hidden');
+            } else {
+                confirmDeleteProjectButton.disabled = true;
+            }
+        });
+    }
+
+    if (deleteProjectForm) {
+        deleteProjectForm.addEventListener('submit', function(e) {
+            if (confirmProjectNameInput.value !== expectedProjectNameToDelete) {
+                e.preventDefault(); // Stop form submission
+                if (deleteErrorText) {
+                    deleteErrorText.textContent = 'The project name you typed does not match.';
+                    deleteErrorText.classList.remove('hidden');
+                }
+                return false;
+            }
+            // If it matches, the form will submit normally to the PHP handler
+            // Add a loading state to the button if desired
+            if (confirmDeleteProjectButton) {
+                confirmDeleteProjectButton.disabled = true;
+                confirmDeleteProjectButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Deleting...';
+            }
+        });
+    }
+    
+    // Add to existing Escape key handler
+    document.addEventListener('keydown', function(event) {
+        if (event.key === "Escape") {
+            if (invitationModal && !invitationModal.classList.contains('hidden')) {
+                closeInvitationModal();
+            }
+            // Add this part for the delete modal
+            if (deleteProjectModal && !deleteProjectModal.classList.contains('hidden')) {
+                closeDeleteProjectModal();
+            }
+        }
+    });
 });
