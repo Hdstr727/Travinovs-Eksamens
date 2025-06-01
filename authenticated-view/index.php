@@ -249,7 +249,15 @@ if (!empty($accessible_board_ids)) {
                         🔔
                         <span id="notification-count-badge" class="absolute top-0 right-0 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center" style="<?= $unread_notifications_count > 0 ? '' : 'display: none;' ?>"><?= $unread_notifications_count > 0 ? $unread_notifications_count : '' ?></span>
                     </button>
-                    <div id="notifications-dropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-md p-4 z-50 max-h-96 overflow-y-auto"><h3 class="text-lg font-semibold mb-2">Notifications</h3><div id="notifications-list"><p class="text-sm text-gray-600">Loading notifications...</p></div><div class="mt-2 text-center"><a href="#" id="mark-all-read" class="text-sm text-[#e63946] hover:underline">Mark all as read</a></div></div>
+                    <div id="notifications-dropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-md p-4 z-50 max-h-96 overflow-y-auto">
+                        <div class="flex justify-between items-center mb-2">
+                            <h3 class="text-lg font-semibold">Notifications</h3>
+                            <a href="#" id="mark-all-read" class="text-sm text-[#e63946] hover:underline">Mark all as read</a>
+                        </div>
+                        <div id="notifications-list">
+                            <p class="text-sm text-gray-600">Loading notifications...</p>
+                        </div>
+                    </div>
                 </div>
                 <button id="dark-mode-toggle" class="bg-gray-200 p-2 rounded-full hover:bg-gray-300 transition">🌙</button>
                 <div class="relative">

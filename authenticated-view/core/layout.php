@@ -155,6 +155,7 @@ if (isset($connection)) {
         © <?= date("Y") ?> Planner+. All rights reserved.
     </footer>
 
+<!-- In authenticated-view/core/layout.php -->
 <script>
     document.addEventListener('DOMContentLoaded', function () {
         const darkModeToggleLayout = document.getElementById('dark-mode-toggle');
@@ -172,11 +173,17 @@ if (isset($connection)) {
             }
         }
 
-        if (localStorage.getItem('darkMode') === 'true') {
+        // Check localStorage first, then system preference
+        let initialDarkMode = localStorage.getItem('darkMode');
+        if (initialDarkMode === 'true') {
             setLayoutDarkMode(true);
-        } else {
+        } else if (initialDarkMode === 'false') {
             setLayoutDarkMode(false);
+        } else { // localStorage not set, check system preference
+            const prefersDarkSchemeLayout = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+            setLayoutDarkMode(prefersDarkSchemeLayout);
         }
+
 
         if (darkModeToggleLayout) {
             darkModeToggleLayout.addEventListener('click', () => {
@@ -188,11 +195,18 @@ if (isset($connection)) {
         const notificationsDropdown = document.getElementById('notifications-dropdown');
         const notificationsList = document.getElementById('notifications-list');
         const markAllReadBtn = document.getElementById('mark-all-read');
+        const notificationCountBadgeLayout = document.getElementById('notification-count-badge'); // Specific to layout
+
+        // --- Notification Polling Variables ---
+        const NOTIFICATION_POLLING_INTERVAL_LAYOUT = 15000; // Consistent polling rate
+        let notificationPollerLayout = null;
 
         function fetchNotifications() {
-            if (!notificationsList) {
+            if (!notificationsList) { // Don't fetch if the list element isn't on the page
                 return;
             }
+            // Path relative to layout.php (in authenticated-view/core/)
+            // to ajax_handlers (in authenticated-view/ajax_handlers/)
             fetch('ajax_handlers/get_notifications.php')
                 .then(response => {
                     if (!response.ok) {
@@ -209,6 +223,7 @@ if (isset($connection)) {
                     }
                 })
                 .catch(error => {
+                    console.error("Layout Fetch notifications error:", error);
                     notificationsList.innerHTML = '<p class="text-sm text-red-500">Error fetching notifications. Please try again.</p>';
                 });
         }
@@ -223,55 +238,59 @@ if (isset($connection)) {
 
             let html = '';
             notifications.forEach(notif => {
-                const isUnreadClass = notif.is_read == 0 ? 'font-semibold bg-sky-50' : ''; // Tailwind classes for unread
+                const isUnreadClass = notif.is_read == 0 ? 'font-semibold bg-sky-50' : 'text-gray-700';
                 const messageText = String(notif.message || '').replace(/</g, "<").replace(/>/g, ">");
                 const createdAtText = String(notif.formatted_created_at || '').replace(/</g, "<").replace(/>/g, ">");
+                
+                let actionButtonsLayout = ''; // Specific for layout if needed, otherwise use common logic
+                // Assuming layout.php notifications don't have invitation actions directly
+                // If they do, replicate the logic from dashboard.js here for `actionButtonsLayout`
 
-                // Use the classes from dark-theme.css for hover and unread items
-                // The .dark-mode prefix will be handled by the CSS file
-                const linkHtml = notif.link ?
-                    `<a href="${encodeURI(notif.link)}" class="block p-2 rounded ${isUnreadClass}" data-id="${notif.notification_id}">` : // hover:bg-gray-100 is handled by dark-theme.css
-                    `<div class="block p-2 rounded ${isUnreadClass}" data-id="${notif.notification_id}">`; // hover:bg-gray-100 is handled by dark-theme.css
-                const linkEndHtml = notif.link ? `</a>` : `</div>`;
+                const linkHtml = notif.link && !actionButtonsLayout ?
+                    `<a href="${encodeURI(notif.link)}" class="block hover:bg-gray-100 p-2 rounded ${isUnreadClass}" data-id="${notif.notification_id}">` :
+                    `<div class="p-2 ${isUnreadClass}" data-id="${notif.notification_id}">`; // Removed hover:bg-gray-100 if no link, rely on item hover
+                const linkEndHtml = notif.link && !actionButtonsLayout ? `</a>` : `</div>`;
 
                 html += `
                     <div class="notification-item border-b border-gray-200 last:border-b-0">
                         ${linkHtml}
                             <p class="text-sm ">${messageText}</p>
                             <p class="text-xs text-gray-500 mt-1">${createdAtText}</p>
+                            ${actionButtonsLayout} 
                         ${linkEndHtml}
                     </div>
                 `;
             });
             notificationsList.innerHTML = html;
 
-            document.querySelectorAll('#notifications-list .notification-item [data-id]').forEach(item => {
-                item.addEventListener('click', function(e) {
-                    const notificationId = this.dataset.id;
-                    const isLink = this.tagName === 'A';
-                     // Check if the item *itself* or its parent container for styling has the unread class
-                    const isCurrentlyUnread = this.classList.contains('font-semibold') || (this.closest('.notification-item') && this.closest('.notification-item').querySelector('.font-semibold'));
-
-                    if (isCurrentlyUnread) {
-                        markNotificationAsRead(notificationId, !isLink); 
-                    }
-                    
-                    if (!isLink) { 
-                        e.stopPropagation(); 
-                    }
-                });
+            // Add event listeners for marking as read on click
+            // Ensure this selector is specific enough if there are other data-id elements
+            document.querySelectorAll('#notifications-list .notification-item > a[data-id], #notifications-list .notification-item > div[data-id]').forEach(item => {
+                // Check if it already has invitation action buttons (if you add them to layout)
+                // if (!item.querySelector('button[onclick^="handleInvitationAction"]')) { // Example if you add actions
+                    item.addEventListener('click', function(e) {
+                        const notificationId = this.dataset.id;
+                        // Check if it's unread by looking for the specific classes
+                        if (this.classList.contains('font-semibold') || this.classList.contains('bg-sky-50')) {
+                            markNotificationAsRead(notificationId, this.tagName !== 'A');
+                        }
+                        // If it's not a link, stop propagation to prevent closing dropdown if not intended
+                        if (this.tagName !== 'A') {
+                            // e.stopPropagation(); // Only stop if you don't want the dropdown to close
+                        }
+                    });
+                // }
             });
         }
     
         function updateUnreadCount(count) {
-            let badge = document.getElementById('notification-count-badge'); 
-            if (badge) {
+            if (notificationCountBadgeLayout) { // Use the layout-specific badge variable
                 if (count > 0) {
-                    badge.textContent = count;
-                    badge.style.display = 'flex'; 
+                    notificationCountBadgeLayout.textContent = count;
+                    notificationCountBadgeLayout.style.display = 'flex'; 
                 } else {
-                    badge.textContent = '';
-                    badge.style.display = 'none'; 
+                    notificationCountBadgeLayout.textContent = '';
+                    notificationCountBadgeLayout.style.display = 'none'; 
                 }
             }
         }
@@ -280,7 +299,7 @@ if (isset($connection)) {
             const formData = new FormData();
             formData.append('notification_id', notificationId);
 
-            fetch('ajax_handlers/mark_notification_read.php', {
+            fetch('ajax_handlers/mark_notification_read.php', { // Path relative to layout.php
                 method: 'POST',
                 body: formData
             })
@@ -293,15 +312,12 @@ if (isset($connection)) {
                         // Manually update the UI for the clicked item
                         const itemClicked = notificationsList && (notificationsList.querySelector(`.notification-item a[data-id="${notificationId}"]`) || notificationsList.querySelector(`.notification-item div[data-id="${notificationId}"]`));
                         if (itemClicked) {
-                            // Remove classes that mark it as unread
                             itemClicked.classList.remove('font-semibold', 'bg-sky-50'); 
-                            // If font-semibold was on a child, remove it too (more robust to find it within item)
-                            const textElements = itemClicked.querySelectorAll('.font-semibold');
-                            textElements.forEach(el => el.classList.remove('font-semibold'));
+                            itemClicked.classList.add('text-gray-700');
                         }
-                        let currentBadge = document.getElementById('notification-count-badge');
-                        if (currentBadge) {
-                           let currentCount = parseInt(currentBadge.textContent || "0");
+                        // Manually update badge count
+                        if (notificationCountBadgeLayout) {
+                           let currentCount = parseInt(notificationCountBadgeLayout.textContent || "0");
                            if (currentCount > 0) {
                                updateUnreadCount(currentCount - 1);
                            }
@@ -309,7 +325,7 @@ if (isset($connection)) {
                     }
                 }
             })
-            .catch(error => console.error('Error marking notification as read:', error));
+            .catch(error => console.error('Layout: Error marking notification as read:', error));
         }
 
         if (markAllReadBtn) {
@@ -319,7 +335,7 @@ if (isset($connection)) {
                 const formData = new FormData();
                 formData.append('mark_all', 'true');
 
-                fetch('ajax_handlers/mark_notification_read.php', {
+                fetch('ajax_handlers/mark_notification_read.php', { // Path relative to layout.php
                     method: 'POST',
                     body: formData
                 })
@@ -329,7 +345,7 @@ if (isset($connection)) {
                         fetchNotifications(); 
                     }
                 })
-                .catch(error => console.error('Error marking all notifications as read:', error));
+                .catch(error => console.error('Layout: Error marking all notifications as read:', error));
             });
         }
 
@@ -338,7 +354,7 @@ if (isset($connection)) {
                 e.stopPropagation(); 
                 notificationsDropdown.classList.toggle('hidden');
                 if (!notificationsDropdown.classList.contains('hidden')) { 
-                    fetchNotifications();
+                    fetchNotifications(); // Fetch when opened
                 }
             });
         }
@@ -350,6 +366,33 @@ if (isset($connection)) {
                 }
             }
         });
+
+        // --- START: Notification Polling Logic for Layout ---
+        function startLayoutNotificationPolling() {
+            if (notificationPollerLayout) clearInterval(notificationPollerLayout);
+            if (notificationsList) { // Only poll if the list element exists
+                fetchNotifications(); // Fetch immediately first
+                notificationPollerLayout = setInterval(fetchNotifications, NOTIFICATION_POLLING_INTERVAL_LAYOUT);
+            }
+        }
+
+        function stopLayoutNotificationPolling() {
+            if (notificationPollerLayout) clearInterval(notificationPollerLayout);
+        }
+
+        // Start polling when the layout loads
+        startLayoutNotificationPolling();
+
+        // Optional: Pause polling when tab is not active, resume when active
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                stopLayoutNotificationPolling();
+            } else {
+                startLayoutNotificationPolling();
+            }
+        });
+        // --- END: Notification Polling Logic for Layout ---
+
     });
 </script>
 </body>
