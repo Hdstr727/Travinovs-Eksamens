@@ -989,9 +989,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
                                 if (array_key_exists($activity_type_key, $icon_map)) { 
                                     $icon_class = $icon_map[$activity_type_key]; 
                                 }
-                                $activity_date = new DateTime($activity_item['created_at'], new DateTimeZone('UTC')); 
-                                $activity_date->setTimezone(new DateTimeZone(date_default_timezone_get())); 
-                                $formatted_date = $activity_date->format('M d, Y H:i');
+                                $timestamp_from_db = $activity_item['created_at']; 
+                                try {
+                                    $activity_date = new DateTime($timestamp_from_db);
+                                    $formatted_date = $activity_date->format('M d, Y H:i');
+                                } catch (Exception $e) {
+                                    error_log("Error parsing date for activity log (Project Settings): " . $e->getMessage() . " - Timestamp: " . $timestamp_from_db);
+                                    $formatted_date = "Invalid date";
+                                }
                                 ?>
                                 <div class="p-4 hover:bg-gray-50 flex items-start" data-activity-type="<?= htmlspecialchars($activity_item['activity_type']) ?>" data-activity-category="<?= explode('_', $activity_item['activity_type'])[0] ?>">
                                     <div class="mr-4 mt-1"><i class="<?= $icon_class ?> text-lg"></i></div>

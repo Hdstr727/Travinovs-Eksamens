@@ -1,6 +1,6 @@
 <?php
 session_start();
-
+//authenticated-view/index.php
 // Check if the user is logged in
 if (!isset($_SESSION['user_id'])) {
     header("Location: core/login.php");
@@ -428,9 +428,15 @@ if (!empty($accessible_board_ids)) {
                                 if (array_key_exists($activity_type_key, $icon_map)) { 
                                     $icon_class = $icon_map[$activity_type_key]; 
                                 }
-                                $activity_date = new DateTime($activity_item_recent_loop['created_at'], new DateTimeZone('UTC')); 
-                                $activity_date->setTimezone(new DateTimeZone(date_default_timezone_get())); 
-                                $formatted_date = $activity_date->format('M d, H:i');
+                               $timestamp_from_db = $activity_item['created_at']; 
+                                
+                                try {
+                                    $activity_date = new DateTime($timestamp_from_db); 
+                                    $formatted_date = $activity_date->format('M d, Y H:i');
+                                } catch (Exception $e) {
+                                    error_log("Error parsing date for activity log (Project Settings): " . $e->getMessage() . " - Timestamp: " . $timestamp_from_db);
+                                    $formatted_date = "Invalid date"; 
+                                }
 
                                 $activity_link = "project_settings.php?board_id=" . $activity_item_recent_loop['board_id'] . "#activity"; 
                                 if ($activity_item_recent_loop['related_entity_type'] == 'task' && $activity_item_recent_loop['related_entity_id']) {
