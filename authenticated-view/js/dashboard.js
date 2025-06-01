@@ -193,7 +193,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     const actionDiv = buttonElement.parentElement;
                     if(actionDiv) actionDiv.innerHTML = `<p class="text-xs text-gray-600 italic mt-1">Invitation ${action}ed.</p>`;
                 }
-                fetchNotifications(); // Refresh list and counts
+                location.reload();
             } else {
                 alert('Error: ' + data.message);
                 buttonElement.disabled = false;
