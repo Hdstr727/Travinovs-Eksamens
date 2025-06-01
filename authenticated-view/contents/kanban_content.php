@@ -620,7 +620,7 @@ $board_data_json = json_encode($board_data_for_js);
     function renderColumn(columnDbId, columnName, columnIdentifier) {
         const columnDomId = `column-${columnIdentifier}`;
         const canRenameColumn = (boardData.permission_level === 'owner' || boardData.permission_level === 'admin') && !parseInt(boardData.is_archived);
-        const canDeleteColumn = boardData.permission_level === 'owner' && !parseInt(boardData.is_archived);
+         const canDeleteColumn = (boardData.permission_level === 'owner' || boardData.permission_level === 'admin') && !parseInt(boardData.is_archived);
         const canAddTask = boardData.permission_level !== 'read' && !parseInt(boardData.is_archived);
 
         const columnHtml = `
