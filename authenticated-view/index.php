@@ -461,7 +461,6 @@ if (!empty($accessible_board_ids)) {
 
         <div class="text-center text-gray-600 mt-8">
             <p>© <?php echo date("Y"); ?> Planotajs. All rights reserved.</p>
-            <div class="mt-2"><a href="#" class="text-[#e63946] hover:underline">About</a> | <a href="#" class="text-[#e63946] hover:underline">Contact</a> | <a href="#" class="text-[#e63946] hover:underline">Privacy Policy</a></div>
         </div>
     </div>
 
