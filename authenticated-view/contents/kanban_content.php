@@ -1,17 +1,16 @@
 <?php
 // authenticated-view/contents/kanban_content.php
 
-// Ensure session is started (usually done in a parent/layout file)
 if (session_status() == PHP_SESSION_NONE) {
     session_start();
 }
 
 if (!isset($_SESSION['user_id'])) {
-    header("Location: ../core/login.php"); // Adjusted path assuming kanban_content.php is in contents/
+    header("Location: ../core/login.php"); 
     exit();
 }
 
-require_once '../admin/database/connection.php'; // Adjusted path
+require_once '../admin/database/connection.php'; 
 
 $user_id = $_SESSION['user_id'];
 $board_id = isset($_GET['board_id']) ? intval($_GET['board_id']) : 0;
@@ -245,6 +244,19 @@ $board_data_json = json_encode($board_data_for_js);
         border: 1px solid #fff; 
     }
     .dark-mode .assignee-avatar { border-color: #242535; background-color: #4A5568; }
+    .kanban-column {
+    display: flex; /* Enable flexbox */
+    flex-direction: column; /* Stack children vertically */
+    /* You might want to set a fixed height or max-height for columns if they can grow too tall */
+    /* For example: max-height: 80vh; or a fixed pixel value */
+    /* If you set a max-height, the task-list will become scrollable */
+}
+
+    .task-list {
+        flex-grow: 1; /* Allows the task list to take up available vertical space */
+        overflow-y: auto; /* Makes the task list scrollable if content exceeds its height */
+        /* Your existing min-height is good, but flex-grow will handle expansion */
+    }
 </style>
 
 <div class="flex justify-between items-center border-b pb-4 md:pb-6 mb-6 md:mb-8">
@@ -762,27 +774,39 @@ $board_data_json = json_encode($board_data_for_js);
     }
 
     function initSortable() {
-        if ($('.task-list').data('ui-sortable')) {
-            $('.task-list').sortable('destroy');
-        }
-        if (boardData.permission_level === 'read' || parseInt(boardData.is_archived) === 1) {
-            return; 
-        }
-        $('.task-list').sortable({
-            connectWith: '.task-list', 
-            handle: '.task-drag-handle',
-            placeholder: 'ui-sortable-placeholder', 
-            forcePlaceholderSize: true, 
-            opacity: 0.8,
-            start: function(event, ui) { 
-                ui.placeholder.height(ui.item.outerHeight()); 
-                ui.placeholder.width(ui.item.outerWidth()); 
-            },
-            stop: function(event, ui) { 
-                updateTaskPositions(); 
-            }
-        }).disableSelection();
+    if ($('.task-list').data('ui-sortable')) {
+        $('.task-list').sortable('destroy');
     }
+    if (boardData.permission_level === 'read' || parseInt(boardData.is_archived) === 1) {
+        return;
+    }
+    $('.task-list').sortable({
+        connectWith: '.task-list',
+        handle: '.task-drag-handle',
+        placeholder: 'ui-sortable-placeholder',
+        forcePlaceholderSize: true,
+        opacity: 0.8,
+        helper: function(event, ui) { // Custom helper function
+            // Clone the original item to preserve its width and styles
+            var $clone = $(ui).clone();
+            // Set the width of the clone to the width of the original item
+            // This helps prevent the helper from becoming wider than the column
+            $clone.width($(ui).outerWidth());
+            return $clone;
+        },
+        start: function(event, ui) {
+            ui.placeholder.height(ui.item.outerHeight());
+            ui.placeholder.width(ui.item.outerWidth()); // Good to set placeholder width too
+            // Optional: Add a class to the body to temporarily hide overflow if needed
+            // $('body').addClass('dragging-task');
+        },
+        stop: function(event, ui) {
+            updateTaskPositions();
+            // Optional: Remove the class from the body
+            // $('body').removeClass('dragging-task');
+        }
+    }).disableSelection();
+}
 
     function updateTaskPositions() {
         const tasksToUpdate = [];
