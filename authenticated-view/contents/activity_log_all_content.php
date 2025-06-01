@@ -1,0 +1,154 @@
+<?php
+// authenticated-view/contents/activity_log_all_content.php
+// This file ONLY contains the HTML and the PHP loops for displaying the content.
+// All data ($activities, $total_pages, $current_page, filter variables, etc.)
+// is expected to be set by the parent file (activity_log_all.php).
+?>
+<div class="container mx-auto px-4 py-8">
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold text-gray-800">Global Activity Log</h1>
+        <a href="index.php" class="bg-[#e63946] text-white py-2 px-4 rounded-lg font-semibold hover:bg-red-700 transition text-sm">
+            Back to Dashboard
+        </a>
+    </div>
+
+    <!-- Filter Section -->
+    <form method="GET" action="activity_log_all.php" class="bg-white p-6 rounded-lg shadow-md mb-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 items-end">
+            <div>
+                <label for="keyword" class="block text-sm font-medium text-gray-700">Keyword</label>
+                <input type="text" name="keyword" id="keyword" value="<?= htmlspecialchars($search_keyword ?? '') ?>" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" placeholder="Search description, user, board...">
+            </div>
+            <div>
+                <label for="board_id_filter" class="block text-sm font-medium text-gray-700">Project</label>
+                <select name="board_id" id="board_id_filter" class="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    <option value="0">All My Projects</option>
+                    <?php foreach ($all_my_boards_for_filter as $board_filter_item): ?>
+                        <option value="<?= $board_filter_item['board_id'] ?>" <?= (($filter_board_id ?? 0) == $board_filter_item['board_id']) ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($board_filter_item['board_name']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div>
+                <label for="user_id_filter" class="block text-sm font-medium text-gray-700">User</label>
+                <select name="user_id" id="user_id_filter" class="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    <option value="0">All Users</option>
+                     <?php foreach ($all_users_for_filter as $user_filter_item): ?>
+                        <option value="<?= $user_filter_item['user_id'] ?>" <?= (($filter_user_id ?? 0) == $user_filter_item['user_id']) ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($user_filter_item['username']) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div>
+                <label for="activity_type_filter" class="block text-sm font-medium text-gray-700">Activity Type</label>
+                <select name="activity_type" id="activity_type_filter" class="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    <option value="">All Types</option>
+                    <?php foreach ($all_activity_types_for_filter as $type_filter_item): ?>
+                        <option value="<?= htmlspecialchars($type_filter_item) ?>" <?= (($filter_activity_type ?? '') == $type_filter_item) ? 'selected' : '' ?>>
+                            <?= htmlspecialchars(ucwords(str_replace('_', ' ', $type_filter_item))) ?>
+                        </option>
+                    <?php endforeach; ?>
+                </select>
+            </div>
+            <div>
+                <label for="date_from" class="block text-sm font-medium text-gray-700">Date From</label>
+                <input type="date" name="date_from" id="date_from" value="<?= htmlspecialchars($filter_date_from ?? '') ?>" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+            </div>
+            <div>
+                <label for="date_to" class="block text-sm font-medium text-gray-700">Date To</label>
+                <input type="date" name="date_to" id="date_to" value="<?= htmlspecialchars($filter_date_to ?? '') ?>" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+            </div>
+        </div>
+        <div class="mt-4 flex justify-end space-x-2">
+            <a href="activity_log_all.php" class="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">Reset Filters</a>
+            <button type="submit" class="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-[#e63946] hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500">Apply Filters</button>
+        </div>
+    </form>
+
+    <!-- Activity List -->
+    <div class="bg-white shadow-md rounded-lg overflow-hidden">
+        <div class="divide-y divide-gray-200">
+            <?php if (empty($activities)): ?>
+                <p class="p-6 text-gray-500 text-center">No activities found matching your criteria.</p>
+            <?php else: ?>
+                <?php foreach ($activities as $activity): ?>
+                    <?php
+                        $icon_class = 'fas fa-info-circle text-blue-500';
+                        $activity_type_key = strtolower($activity['activity_type']);
+                        $icon_map = [
+                            'task_created' => 'fas fa-plus-circle text-green-500', 'task_updated' => 'fas fa-edit text-blue-500',
+                            'task_deleted' => 'fas fa-trash-alt text-red-500', 'task_moved' => 'fas fa-arrows-alt text-indigo-500',
+                            'task_completed' => 'fas fa-check-circle text-green-600', 'task_reopened'  => 'fas fa-undo text-yellow-500',
+                            'comment_added'  => 'fas fa-comment text-gray-500', 'collaborator_added' => 'fas fa-user-plus text-purple-500',
+                            'collaborator_removed' => 'fas fa-user-minus text-orange-500',
+                            'collaborator_left' => 'fas fa-sign-out-alt text-orange-600',
+                            'collaborator_permission_changed' => 'fas fa-user-shield text-teal-500',
+                            'settings_updated' => 'fas fa-cog text-gray-600', 'board_created' => 'fas fa-chalkboard text-pink-500',
+                            'project_archived' => 'fas fa-archive text-yellow-600', 'project_unarchived' => 'fas fa-undo text-green-600',
+                            'project_deleted' => 'fas fa-trash-alt text-red-700',
+                            'invitation_sent' => 'fas fa-paper-plane text-blue-500',
+                            'invitation_accepted' => 'fas fa-user-check text-green-500',
+                            'invitation_declined' => 'fas fa-user-times text-red-500',
+                            'invitation_cancelled' => 'fas fa-ban text-orange-500'
+                        ];
+                        if (array_key_exists($activity_type_key, $icon_map)) {
+                            $icon_class = $icon_map[$activity_type_key];
+                        }
+                        $timestamp_from_db = $activity['created_at'];
+                        try {
+                            $activity_date_obj = new DateTime($timestamp_from_db);
+                            $formatted_activity_date = $activity_date_obj->format('M d, Y H:i');
+                        } catch (Exception $e) {
+                            error_log("Error parsing date for activity log (All Activities): " . $e->getMessage() . " - Timestamp: " . $timestamp_from_db);
+                            $formatted_activity_date = "Invalid date";
+                        }
+                    ?>
+                    <div class="p-4 hover:bg-gray-50 flex items-start">
+                        <div class="mr-4 mt-1 flex-shrink-0"><i class="<?= $icon_class ?> text-lg"></i></div>
+                        <div class="flex-grow">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <span class="font-semibold text-gray-800"><?= htmlspecialchars($activity['actor_username']) ?></span>
+                                    <span class="text-gray-600 ml-1"><?= htmlspecialchars($activity['activity_description']) ?></span>
+                                </div>
+                                <div class="text-xs text-gray-500 whitespace-nowrap ml-2"><?= $formatted_activity_date ?></div>
+                            </div>
+                            <div class="text-xs text-gray-500 mt-0.5">
+                                On project:
+                                <a href="project_settings.php?board_id=<?= $activity['board_id'] ?>" class="text-blue-600 hover:underline">
+                                    <?= htmlspecialchars($activity['board_name']) ?>
+                                </a>
+                                <?php if ($activity['related_entity_type'] == 'task' && $activity['related_entity_id']): ?>
+                                    | <a href="kanban.php?board_id=<?= $activity['board_id'] ?>&task_id=<?= $activity['related_entity_id'] ?>" class="text-blue-600 hover:underline">View Task</a>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <!-- Pagination -->
+    <?php if (($total_pages ?? 0) > 1): ?>
+    <div class="mt-8 flex justify-center items-center space-x-1">
+        <?php if ($current_page > 1): ?>
+            <a href="?<?= http_build_query(array_merge($_GET, ['page' => $current_page - 1])) ?>" class="px-3 py-1 border rounded-md bg-white text-sm text-gray-600 hover:bg-gray-50">Previous</a>
+        <?php endif; ?>
+
+        <?php for ($i = 1; $i <= $total_pages; $i++): ?>
+            <?php if ($i == $current_page): ?>
+                <span class="px-3 py-1 border rounded-md bg-[#e63946] text-white text-sm"><?= $i ?></span>
+            <?php else: ?>
+                <a href="?<?= http_build_query(array_merge($_GET, ['page' => $i])) ?>" class="px-3 py-1 border rounded-md bg-white text-sm text-gray-600 hover:bg-gray-50"><?= $i ?></a>
+            <?php endif; ?>
+        <?php endfor; ?>
+
+        <?php if ($current_page < $total_pages): ?>
+            <a href="?<?= http_build_query(array_merge($_GET, ['page' => $current_page + 1])) ?>" class="px-3 py-1 border rounded-md bg-white text-sm text-gray-600 hover:bg-gray-50">Next</a>
+        <?php endif; ?>
+    </div>
+    <?php endif; ?>
+</div>

@@ -467,7 +467,15 @@ if (!empty($accessible_board_ids)) {
                                 </div>
                             </div>
                         <?php endforeach; ?>
-                        <?php /* Removed the "View all activity..." link as per request */ ?>
+                        
+                        <?php if (count($recent_activities) >= $limit_recent_activities || count($recent_activities) > 0 ):?>
+                        <div class="mt-4 pt-2 border-t border-gray-200 text-center">
+                            <a href="activity_log_all.php" class="text-sm text-[#e63946] hover:underline font-medium">
+                                View all activity...
+                            </a>
+                        </div>
+                        <?php endif; ?>
+                        
                     <?php endif; ?>
                 </div>
             </div>
