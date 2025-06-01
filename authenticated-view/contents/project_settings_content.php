@@ -599,7 +599,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
         <div>
             <h2 class="text-xl font-bold mb-2">My Projects</h2>
             <?php if (empty($owned_boards)): ?>
-                <p class="text-gray-500 text-sm mb-4">No projects created by you. <a href="kanban.php?action=create_board" class="text-blue-600 hover:underline">Create one?</a></p>
+                <p class="text-gray-500 text-sm mb-4">No projects created by you. <a href="index.php?action=create_board" class="text-blue-600 hover:underline">Create one now?</a></p>
             <?php else: ?>
                 <div class="space-y-2 mb-4">
                     <?php foreach ($owned_boards as $board_item): ?>
@@ -630,7 +630,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
                 </div>
             <?php endif; ?>
         </div>
-        <div class="mt-6"><a href="kanban.php" class="text-blue-600 hover:underline flex items-center gap-2"><i class="fas fa-arrow-left"></i> Back to Kanban</a></div>
+        <div class="mt-6"><a href="index.php" class="text-blue-600 hover:underline flex items-center gap-2"><i class="fas fa-arrow-left"></i> Back to Dashboard</a></div>
     </div>
     
     <!-- Main settings content -->
@@ -639,7 +639,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
             <div class="text-center py-8">
                 <i class="fas fa-folder-open text-4xl text-gray-400 mb-4"></i>
                 <h3 class="text-xl font-semibold text-gray-600">No Projects Found</h3>
-                <p class="text-gray-500 mt-2">You are not part of any projects yet. Go to the <a href="kanban.php" class="text-blue-600 hover:underline">Kanban view</a> to create or join one.</p>
+                <p class="text-gray-500 mt-2">You are not part of any projects yet. Go to the <a href="index.php?action=create_board" class="text-blue-600 hover:underline">Dashboard to create one</a>.</p>
             </div>
         <?php elseif (empty($active_board_id) && (!empty($owned_boards) || !empty($shared_boards))): ?>
              <div class="text-center py-8">

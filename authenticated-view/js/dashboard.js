@@ -13,6 +13,18 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('action') === 'create_board') {
+        const addBoardModal = document.getElementById('add-board-modal');
+        if (addBoardModal) {
+            addBoardModal.classList.remove('hidden');
+        }
+        // Optionally, remove the query parameter from the URL so it doesn't persist on refresh
+        // Or if the user bookmarks the page.
+        const newUrl = window.location.pathname + window.location.search.replace(/&?action=create_board/, '').replace(/\?$/, '');
+        window.history.replaceState({}, document.title, newUrl);
+    }
+
     // --- Dark Mode Toggle Script ---
     const darkModeToggle = document.getElementById('dark-mode-toggle');
     const htmlElement = document.documentElement;
