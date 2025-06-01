@@ -162,40 +162,90 @@ if ($stmt_count_notif) {
     $stmt_count_notif->close();
 } else { error_log("Failed to prepare statement for unread notifications count: " . $connection->error);}
 
-// --- Fetch Recent Activities for Dashboard (Actions by OTHERS on user's relevant boards) ---
+// --- Fetch Recent Activities for Dashboard ---
 $recent_activities = [];
-$limit_recent_activities = 10; 
+$limit_recent_activities = 10;
 
-$accessible_board_ids = [];
-// $board_access_subquery is already defined earlier and correctly lists boards the user has access to
-$stmt_accessible_boards = $connection->prepare($board_access_subquery);
-if ($stmt_accessible_boards) {
-    $stmt_accessible_boards->bind_param("ii", $user_id, $user_id);
-    $stmt_accessible_boards->execute();
-    $result_accessible_boards = $stmt_accessible_boards->get_result();
-    while ($row_board_id = $result_accessible_boards->fetch_assoc()) {
-        $accessible_board_ids[] = $row_board_id['board_id'];
+// --- Determine boards for which the user can view activity logs ---
+$board_ids_user_can_view_activity_for = [];
+
+// 1. Boards where user is owner (always has access to logs)
+$owner_boards_sql = "SELECT board_id FROM Planner_Boards WHERE user_id = ? AND is_deleted = 0";
+// Apply archived filter if $show_archived is false
+if (!$show_archived) {
+    $owner_boards_sql .= " AND is_archived = 0";
+}
+$stmt_owner_log_access = $connection->prepare($owner_boards_sql);
+if ($stmt_owner_log_access) {
+    $stmt_owner_log_access->bind_param("i", $user_id);
+    $stmt_owner_log_access->execute();
+    $res_owner_log_access = $stmt_owner_log_access->get_result();
+    while ($row = $res_owner_log_access->fetch_assoc()) {
+        $board_ids_user_can_view_activity_for[] = $row['board_id'];
     }
-    $stmt_accessible_boards->close();
+    $stmt_owner_log_access->close();
 } else {
-    error_log("Dashboard: Failed to prepare statement for accessible board IDs in recent activity: " . $connection->error);
+    error_log("Dashboard: Failed to prepare owner_boards_sql for activity log: " . $connection->error);
 }
 
-if (!empty($accessible_board_ids)) {
-    $sql_create_activity_table_dashboard = "CREATE TABLE IF NOT EXISTS Planner_ActivityLog (activity_id INT AUTO_INCREMENT PRIMARY KEY, board_id INT NOT NULL, user_id INT NOT NULL, activity_type VARCHAR(50) NOT NULL, activity_description TEXT NOT NULL, related_entity_id INT NULL, related_entity_type VARCHAR(50) NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (board_id) REFERENCES Planner_Boards(board_id) ON DELETE CASCADE, FOREIGN KEY (user_id) REFERENCES Planner_Users(user_id) ON DELETE CASCADE)";
-    $connection->query($sql_create_activity_table_dashboard);
+// 2. Boards where user is a collaborator with specific log access rights
+// Ensure Planner_Boards has 'activity_log_permissions' TEXT column
+$collab_boards_log_access_sql = "
+    SELECT 
+        c.board_id, 
+        b.activity_log_permissions,
+        c.permission_level as collaborator_permission_level 
+    FROM Planner_Collaborators c
+    JOIN Planner_Boards b ON c.board_id = b.board_id
+    WHERE c.user_id = ? AND b.is_deleted = 0";
+// Apply archived filter if $show_archived is false
+if (!$show_archived) {
+    $collab_boards_log_access_sql .= " AND b.is_archived = 0";
+}
+$stmt_collab_log_access = $connection->prepare($collab_boards_log_access_sql);
+if ($stmt_collab_log_access) {
+    $stmt_collab_log_access->bind_param("i", $user_id);
+    $stmt_collab_log_access->execute();
+    $res_collab_log_access = $stmt_collab_log_access->get_result();
+    while ($board_perm_info = $res_collab_log_access->fetch_assoc()) {
+        $can_view_log_collab = false;
+        $log_perms = json_decode($board_perm_info['activity_log_permissions'] ?? '', true);
+        if (!is_array($log_perms)) $log_perms = [];
 
-    $board_ids_placeholders_recent = implode(',', array_fill(0, count($accessible_board_ids), '?'));
+        $role = $board_perm_info['collaborator_permission_level'];
+
+        if ($role === 'admin' && ($log_perms['admin'] ?? true)) { // Default admin to true if key missing
+            $can_view_log_collab = true;
+        } elseif ($role === 'edit' && ($log_perms['edit'] ?? false)) {
+            $can_view_log_collab = true;
+        } elseif ($role === 'view' && ($log_perms['view'] ?? false)) {
+            $can_view_log_collab = true;
+        }
+        
+        if ($can_view_log_collab) {
+            $board_ids_user_can_view_activity_for[] = $board_perm_info['board_id'];
+        }
+    }
+    $stmt_collab_log_access->close();
+} else {
+    error_log("Dashboard: Failed to prepare collab_boards_log_access_sql: " . $connection->error);
+}
+$board_ids_user_can_view_activity_for = array_unique($board_ids_user_can_view_activity_for);
+
+
+// Now fetch recent activities ONLY from these permitted boards
+if (!empty($board_ids_user_can_view_activity_for)) {
+    // CREATE TABLE IF NOT EXISTS should ideally be in an installer script
+    // $sql_create_activity_table_dashboard = "CREATE TABLE IF NOT EXISTS Planner_ActivityLog (...)";
+    // $connection->query($sql_create_activity_table_dashboard);
+
+    $board_ids_placeholders_recent = implode(',', array_fill(0, count($board_ids_user_can_view_activity_for), '?'));
     
-    // Prepare types and params for binding
-    // One 'i' for each board_id, then one 'i' for the logged-in user_id (for exclusion), then one 'i' for LIMIT
-    $types_recent = str_repeat('i', count($accessible_board_ids)) . 'i' . 'i'; 
-    $params_recent = $accessible_board_ids;
-    $params_recent[] = $user_id; // Add logged-in user_id for the exclusion condition
+    $types_recent = str_repeat('i', count($board_ids_user_can_view_activity_for)) . 'i' . 'i'; 
+    $params_recent = $board_ids_user_can_view_activity_for;
+    $params_recent[] = $user_id; // For excluding self-activity
     $params_recent[] = $limit_recent_activities;
 
-    // Modified SQL query:
-    // Added "AND al.user_id != ?" to exclude activities by the logged-in user
     $sql_recent_activities = "SELECT al.*, u.username as actor_username, b.board_name 
                               FROM Planner_ActivityLog al
                               JOIN Planner_Users u ON al.user_id = u.user_id
@@ -398,18 +448,19 @@ if (!empty($accessible_board_ids)) {
         </div>
 
 
+        <!-- Recent Activity Section in index.php HTML -->
         <div class="mb-8">
-            <h3 class="text-xl font-semibold text-gray-700 mb-4">Recent Activity (Last <?= $limit_recent_activities ?> items)</h3>
-            <div class="bg-white p-6 rounded-lg shadow-md card">
+            <h3 class="text-xl font-semibold text-gray-700 mb-4">Recent Activity (Last <?= $limit_recent_activities ?> items by others)</h3>
+            <div class="bg-white p-6 rounded-lg shadow-md card"> 
                 <div class="space-y-1"> 
                     <?php if (empty($recent_activities)): ?>
-                        <p class="text-sm text-gray-500">No recent activity to display across your accessible projects.</p>
+                        <p class="text-sm text-gray-500">No recent activity by others on projects where you can view logs.</p>
                     <?php else: ?>
-                        <?php foreach ($recent_activities as $activity_item_recent_loop): ?>
+                        <?php foreach ($recent_activities as $activity_item): ?>
                             <?php
                                 $icon_class = 'fas fa-info-circle text-blue-500'; 
-                                $activity_type_key = strtolower($activity_item_recent_loop['activity_type']);
-                                $icon_map = [ 
+                                $activity_type_key = strtolower($activity_item['activity_type']);
+                                $icon_map = [ /* your full icon_map */ 
                                     'task_created' => 'fas fa-plus-circle text-green-500', 'task_updated' => 'fas fa-edit text-blue-500', 
                                     'task_deleted' => 'fas fa-trash-alt text-red-500', 'task_moved' => 'fas fa-arrows-alt text-indigo-500', 
                                     'task_completed' => 'fas fa-check-circle text-green-600', 'task_reopened'  => 'fas fa-undo text-yellow-500', 
@@ -428,48 +479,47 @@ if (!empty($accessible_board_ids)) {
                                 if (array_key_exists($activity_type_key, $icon_map)) { 
                                     $icon_class = $icon_map[$activity_type_key]; 
                                 }
-                               $timestamp_from_db = $activity_item['created_at']; 
-                                
+                                $timestamp_from_db = $activity_item['created_at']; 
                                 try {
-                                    $activity_date = new DateTime($timestamp_from_db); 
+                                    $activity_date = new DateTime($timestamp_from_db);
                                     $formatted_date = $activity_date->format('M d, Y H:i');
                                 } catch (Exception $e) {
-                                    error_log("Error parsing date for activity log (Project Settings): " . $e->getMessage() . " - Timestamp: " . $timestamp_from_db);
+                                    error_log("Error parsing date for dashboard activity log: " . $e->getMessage() . " - Timestamp: " . $timestamp_from_db);
                                     $formatted_date = "Invalid date"; 
                                 }
 
-                                $activity_link = "project_settings.php?board_id=" . $activity_item_recent_loop['board_id'] . "#activity"; 
-                                if ($activity_item_recent_loop['related_entity_type'] == 'task' && $activity_item_recent_loop['related_entity_id']) {
-                                    $activity_link = "kanban.php?board_id=" . $activity_item_recent_loop['board_id'] . "&task_id=" . $activity_item_recent_loop['related_entity_id'];
+                                $activity_link = "project_settings.php?board_id=" . $activity_item['board_id'] . "#activity"; 
+                                if ($activity_item['related_entity_type'] == 'task' && $activity_item['related_entity_id']) {
+                                    $activity_link = "kanban.php?board_id=" . $activity_item['board_id'] . "&task_id=" . $activity_item['related_entity_id'];
                                 }
                             ?>
-                            <div class="p-2.5 hover:bg-gray-50 flex items-start border-b border-gray-200 last:border-b-0">
+                            <div class="p-2.5 hover:bg-gray-50 flex items-start border-b border-gray-200 last:border-b-0"> 
                                 <div class="mr-3 mt-1 flex-shrink-0 activity-item-icon">
                                     <i class="<?= $icon_class ?> text-base"></i>
                                 </div>
                                 <div class="flex-grow text-sm">
                                     <div class="flex justify-between items-baseline">
                                         <div>
-                                            <span class="font-semibold text-gray-800"><?= htmlspecialchars($activity_item_recent_loop['actor_username']) ?></span>
-                                            <span class="text-gray-600 ml-1"><?= htmlspecialchars($activity_item_recent_loop['activity_description']) ?></span>
+                                            <span class="font-semibold text-gray-800"><?= htmlspecialchars($activity_item['actor_username']) ?></span> 
+                                            <span class="text-gray-600 ml-1"><?= htmlspecialchars($activity_item['activity_description']) ?></span> 
                                         </div>
-                                        <div class="text-xs text-gray-400 whitespace-nowrap ml-2 "><?= $formatted_date ?></div>
+                                        <div class="text-xs text-gray-400 whitespace-nowrap ml-2"><?= $formatted_date ?></div> 
                                     </div>
                                     <div class="text-xs text-gray-500 mt-0.5">
                                         On project: 
-                                        <a href="project_settings.php?board_id=<?= $activity_item_recent_loop['board_id'] ?>" class="text-blue-600 hover:underline">
-                                            <?= htmlspecialchars($activity_item_recent_loop['board_name']) ?>
+                                        <a href="project_settings.php?board_id=<?= $activity_item['board_id'] ?>" class="text-blue-600 hover:underline">
+                                            <?= htmlspecialchars($activity_item['board_name']) ?>
                                         </a>
-                                        <?php if ($activity_item_recent_loop['related_entity_type'] == 'task' && $activity_item_recent_loop['related_entity_id']): ?>
-                                            | <a href="<?= htmlspecialchars($activity_link) ?>" class="text-blue-600 hover:underline">View Task</a>
+                                        <?php if ($activity_item['related_entity_type'] == 'task' && $activity_item['related_entity_id']): ?>
+                                            | <a href="<?= htmlspecialchars($activity_link) ?>" class="text-blue-600 hover:underline">View Task</a> 
                                         <?php endif; ?>
                                     </div>
                                 </div>
                             </div>
                         <?php endforeach; ?>
                         
-                        <?php if (count($recent_activities) >= $limit_recent_activities || count($recent_activities) > 0 ):?>
-                        <div class="mt-4 pt-2 border-t border-gray-200 text-center">
+                        <?php if (count($recent_activities) >= $limit_recent_activities || count($recent_activities) > 0 ): ?>
+                        <div class="mt-4 pt-2 border-t border-gray-200 text-center"> 
                             <a href="activity_log_all.php" class="text-sm text-[#e63946] hover:underline font-medium">
                                 View all activity...
                             </a>
@@ -493,4 +543,4 @@ if (!empty($accessible_board_ids)) {
     <!-- Path relative to authenticated-view/index.php -->
     <script src="js/dashboard.js" defer></script> 
 </body>
-</html>
+</html> 

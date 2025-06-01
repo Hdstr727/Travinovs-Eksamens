@@ -392,3 +392,7 @@ html.dark-mode {
     background-color: #2E2F45 !important; /* A slightly darker shade than your .dark-mode .bg-gray-50 for hover */
                                          /* Or choose another subtle dark hover color, e.g., #34354A */
 }
+
+.dark-mode .hover\:bg-gray-50:hover {
+    background-color: #28293D !important; /* Or your preferred dark hover color, e.g., #34354A */
+}

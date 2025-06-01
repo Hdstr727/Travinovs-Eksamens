@@ -1,5 +1,5 @@
 <?php
-// project_settings_content.php
+// project_settings_content.php (NEW PHP LOGIC)
 
 if (session_status() == PHP_SESSION_NONE) {
     session_start();
@@ -70,40 +70,64 @@ if ($active_board_id == 0) {
 $board_details = null;
 $current_user_permission_on_active_board = null; // 'owner', 'admin', 'edit', 'view', or null
 
+$log_access_admin_setting = true;  // Default admin to true
+$log_access_edit_setting  = false; // Default edit to false
+$log_access_view_setting  = false; // Default view to false
+
 if ($active_board_id > 0) {
-    // Fetch board details (owner ID is crucial)
+    // Fetch board details, including 'activity_log_permissions'
     $sql_details = "SELECT * FROM Planner_Boards WHERE board_id = ? AND is_deleted = 0";
     $stmt_details = $connection->prepare($sql_details);
-    $stmt_details->bind_param("i", $active_board_id);
-    $stmt_details->execute();
-    $result_details = $stmt_details->get_result();
-    $board_details = $result_details->fetch_assoc();
-    $stmt_details->close();
+    
+    if ($stmt_details) {
+        $stmt_details->bind_param("i", $active_board_id);
+        $stmt_details->execute();
+        $result_details = $stmt_details->get_result();
+        $board_details = $result_details->fetch_assoc(); // $board_details is populated here
+        $stmt_details->close();
+    } else {
+        error_log("Error preparing board details SQL: " . $connection->error);
+        if (!$error) $error = "Error fetching project details.";
+    }
 
     if ($board_details) {
+        // Determine current user's permission on this specific board
         if ($board_details['user_id'] == $user_id) {
             $current_user_permission_on_active_board = 'owner';
         } else {
-            // Check if the logged-in user is a collaborator on this board
             $sql_collab_perm = "SELECT permission_level FROM Planner_Collaborators WHERE board_id = ? AND user_id = ?";
             $stmt_collab_perm = $connection->prepare($sql_collab_perm);
-            $stmt_collab_perm->bind_param("ii", $active_board_id, $user_id);
-            $stmt_collab_perm->execute();
-            $result_collab_perm = $stmt_collab_perm->get_result();
-            if ($collab_perm_row = $result_collab_perm->fetch_assoc()) {
-                $current_user_permission_on_active_board = $collab_perm_row['permission_level'];
+            if($stmt_collab_perm){
+                $stmt_collab_perm->bind_param("ii", $active_board_id, $user_id);
+                $stmt_collab_perm->execute();
+                $result_collab_perm = $stmt_collab_perm->get_result();
+                if ($collab_perm_row = $result_collab_perm->fetch_assoc()) {
+                    $current_user_permission_on_active_board = $collab_perm_row['permission_level'];
+                }
+                $stmt_collab_perm->close();
+            } else {
+                 error_log("Error preparing collab permission SQL: " . $connection->error);
             }
-            $stmt_collab_perm->close();
         }
+
         if ($current_user_permission_on_active_board === null) {
-            // User has no direct ownership or collaboration record for this board
             $board_details = null; 
-            // $active_board_id = 0; // Keep $active_board_id to show error for this specific board
-            if (!$error) $error = "You do not have permission to access settings for this project or it does not exist.";
+            if (!$error) $error = "You do not have permission to access settings for this project.";
+        } else {
+            // Board details are valid, and user has permission. Now parse log settings.
+            $log_perms_from_db = json_decode($board_details['activity_log_permissions'] ?? '', true);
+            
+            if (is_array($log_perms_from_db)) {
+                // Use values from DB if present, otherwise stick to the initial defaults
+                $log_access_admin_setting = $log_perms_from_db['admin'] ?? true;
+                $log_access_edit_setting  = $log_perms_from_db['edit']  ?? false;
+                $log_access_view_setting  = $log_perms_from_db['view']  ?? false;
+            } else {
+                // JSON was null or invalid, stick to the initial defaults set before this if block
+            }
         }
     } else {
-      // $active_board_id = 0; // Keep $active_board_id if board not found at all
-      if (!$error) $error = "The selected project could not be found or has been deleted.";
+      if (!$error && $active_board_id > 0) $error = "The selected project could not be found or has been deleted.";
     }
 }
 
@@ -206,25 +230,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
             $project_tags = isset($_POST['project_tags']) ? trim($_POST['project_tags']) : ($board_details['tags'] ?? '');
             
             if (!empty($board_name)) {
-                // Only the board owner can truly "own" and update the core record like this
-                // An admin collaborator updates fields, but the user_id owner remains.
                 $sql_update = "UPDATE Planner_Boards SET 
                                board_name = ?, board_description = ?, tags = ?, updated_at = CURRENT_TIMESTAMP
-                               WHERE board_id = ? AND user_id = ?"; // Check against actual board owner
+                               WHERE board_id = ? AND user_id = ?"; 
                 $stmt_update = $connection->prepare($sql_update);
                 $stmt_update->bind_param("sssii", $board_name, $board_description, $project_tags, $active_board_id, $board_details['user_id']); 
                 
                 if ($stmt_update->execute()) {
                     $message = "Project settings updated successfully!";
                     log_and_notify($connection, $active_board_id, $user_id, 'settings_updated', "Project settings for \"{$board_name}\" were updated by " . $_SESSION['username'] . ".", null, null, get_board_associated_user_ids($connection, $active_board_id));
-                    // Refresh $board_details and $owned_boards / $shared_boards (if name changed)
                     $sql_details_refresh = "SELECT * FROM Planner_Boards WHERE board_id = ? AND is_deleted = 0";
                     $stmt_details_refresh = $connection->prepare($sql_details_refresh);
                     $stmt_details_refresh->bind_param("i", $active_board_id);
                     $stmt_details_refresh->execute();
                     $board_details = $stmt_details_refresh->get_result()->fetch_assoc();
                     $stmt_details_refresh->close();
-                    // Potentially re-fetch $owned_boards and $shared_boards lists
                 } else { $error = "Error updating project settings: " . $connection->error; }
                 $stmt_update->close();
             } else { $error = "Project name cannot be empty!"; }
@@ -250,7 +270,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
             $can_remove = false;
             if ($target_collab_details) {
                 if ($current_user_permission_on_active_board == 'owner') {
-                    if ($target_collab_details['target_user_id'] != $board_details['user_id']) { // Owner cannot remove themselves as collab
+                    if ($target_collab_details['target_user_id'] != $board_details['user_id']) { 
                         $can_remove = true;
                     } else { $error = "The project owner cannot be removed as a collaborator."; }
                 } elseif ($current_user_permission_on_active_board == 'admin') {
@@ -260,7 +280,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
                         $error = "Admin collaborators cannot remove other admin collaborators.";
                     } elseif ($target_collab_details['target_user_id'] == $user_id) {
                          $error = "You cannot remove yourself as a collaborator. Ask the project owner.";
-                    } else { // Admin can remove 'edit' or 'view'
+                    } else { 
                         $can_remove = true;
                     }
                 }
@@ -273,8 +293,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
                 if ($stmt_remove->execute()) {
                     $message = "Collaborator " . htmlspecialchars($target_collab_details['target_username']) . " removed successfully!"; 
                     log_and_notify($connection, $active_board_id, $user_id, 'collaborator_removed', "Collaborator {$target_collab_details['target_username']} ({$target_collab_details['target_email']}) was removed by " . $_SESSION['username'] . ".", $target_collab_details['target_user_id'], 'user', get_board_associated_user_ids($connection, $active_board_id));
-                    // Refresh collaborators list
-                    // ... (your $stmt_collaborators_refresh logic) ...
                 } else { $error = "Error removing collaborator: " . $connection->error; }
                 $stmt_remove->close();
             } elseif (!$error) { $error = "You do not have permission to remove this collaborator."; }
@@ -321,14 +339,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
 
                 if ($can_update_permission) {
                     $sql_update_permission = "UPDATE Planner_Collaborators SET permission_level = ? WHERE collaboration_id = ? AND board_id = ?";
-                    $stmt_update_permission_db = $connection->prepare($sql_update_permission); // Renamed to avoid conflict
+                    $stmt_update_permission_db = $connection->prepare($sql_update_permission);
                     $stmt_update_permission_db->bind_param("sii", $new_permission_level, $collaboration_id_to_update, $active_board_id);
                     if ($stmt_update_permission_db->execute()) {
                         if ($stmt_update_permission_db->affected_rows > 0) {
                             $message = "Collaborator " . htmlspecialchars($target_collab_details_perm['target_username']) . "'s permission updated to {$new_permission_level}!";
                              log_and_notify($connection, $active_board_id, $user_id, 'collaborator_permission_changed', "Permission for collaborator {$target_collab_details_perm['target_username']} ({$target_collab_details_perm['target_email']}) changed to {$new_permission_level} by " . $_SESSION['username'] . ".", $target_collab_details_perm['target_user_id'], 'user', get_board_associated_user_ids($connection, $active_board_id));
-                            // Refresh collaborators
-                            // ... (your $stmt_collaborators_refresh logic) ...
                         } else { $error = "Permission not changed (it might be the same as before or collaborator not found)."; }
                     } else { $error = "Error updating collaborator permission: " . $connection->error; }
                     $stmt_update_permission_db->close();
@@ -337,11 +353,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
         } else { $error = "You do not have permission to manage collaborators."; }
     }
 
-    // Update Notification Settings (LOGGED-IN USER'S settings for THIS board)
+    // Update Notification Settings
     if (isset($_POST['update_notification_settings_submit'])) {
         $redirect_to_hash = "#notifications";
-        // This action is always allowed for the logged-in user for the current board,
-        // as long as they have any level of access to the board settings page itself.
         $settings_to_update = [];
         $event_notification_fields = [
             'notify_task_created', 'notify_task_assignment', 'notify_task_status_changed',
@@ -376,7 +390,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
         } else { $error = "Error preparing notification settings update: " . $connection->error; }
     }
     
-     // --- DANGER ZONE ACTIONS (Archive, Unarchive) ---
+    // --- DANGER ZONE ACTIONS (Archive, Unarchive) ---
     $danger_zone_actions_non_delete = ['archive_project', 'unarchive_project'];
     foreach($danger_zone_actions_non_delete as $action_key) {
         if (isset($_POST[$action_key])) {
@@ -392,7 +406,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
                         if ($stmt_danger->execute()) { 
                             $message = "Project archived successfully!"; 
                             log_and_notify($connection, $active_board_id, $user_id, 'project_archived', "Project \"{$board_name_to_log}\" was archived by " . $_SESSION['username'] . ".", null, null, get_board_associated_user_ids($connection, $active_board_id));
-                            $board_details['is_archived'] = 1; // Update local variable
+                            $board_details['is_archived'] = 1; 
                         } else { $error = "Error archiving project: " . $stmt_danger->error; } 
                         $stmt_danger->close();
                     } else { $error = "Error preparing archive statement: " . $connection->error; }
@@ -405,32 +419,86 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
                         if ($stmt_danger->execute()) { 
                             $message = "Project unarchived successfully!"; 
                             log_and_notify($connection, $active_board_id, $user_id, 'project_unarchived', "Project \"{$board_name_to_log}\" was unarchived by " . $_SESSION['username'] . ".", null, null, get_board_associated_user_ids($connection, $active_board_id));
-                            $board_details['is_archived'] = 0; // Update local variable
+                            $board_details['is_archived'] = 0; 
                         } else { $error = "Error unarchiving project: " . $stmt_danger->error; } 
                         $stmt_danger->close();
                     } else { $error = "Error preparing unarchive statement: " . $connection->error; }
                 }
             } else { $error = "Only the project owner can perform this action."; }
-            // No break here if you want to allow multiple non-delete danger zone actions,
-            // but typically only one form is submitted at a time.
-            // If these are separate forms, a break is fine.
-            // For now, assuming one action per POST.
             break; 
         }
     }
 
+    // --- Update Activity Log Role Visibility (JSON method) ---
+    if (isset($_POST['action_update_log_visibility'])) { 
+        $redirect_to_hash = "#advanced"; 
+        if ($board_details && $current_user_permission_on_active_board == 'owner' && !($board_details['is_archived'] ?? 0)) {
+            
+            $submitted_roles = $_POST['log_access_roles'] ?? [];
+            
+            $new_log_permissions = [
+                'admin' => isset($submitted_roles['admin']) ? true : false,
+                'edit'  => isset($submitted_roles['edit'])  ? true : false,
+                'view'  => isset($submitted_roles['view'])  ? true : false,
+            ];
+            $json_permissions = json_encode($new_log_permissions);
+
+            $sql_update_visibility = "UPDATE Planner_Boards 
+                                      SET activity_log_permissions = ?, updated_at = CURRENT_TIMESTAMP 
+                                      WHERE board_id = ? AND user_id = ?";
+            $stmt_update_visibility = $connection->prepare($sql_update_visibility);
+            if ($stmt_update_visibility) {
+                $stmt_update_visibility->bind_param("sii", 
+                    $json_permissions, 
+                    $active_board_id, 
+                    $board_details['user_id'] 
+                );
+                if ($stmt_update_visibility->execute()) {
+                    if ($stmt_update_visibility->affected_rows >= 0) { 
+                        $message = "Activity log visibility settings updated.";
+                        $board_details['activity_log_permissions'] = $json_permissions; 
+                        $log_access_admin_setting = $new_log_permissions['admin'];
+                        $log_access_edit_setting  = $new_log_permissions['edit'];
+                        $log_access_view_setting  = $new_log_permissions['view'];
+                        
+                        $log_desc_parts = [];
+                        if ($new_log_permissions['admin']) $log_desc_parts[] = "Admin:Yes"; else $log_desc_parts[] = "Admin:No";
+                        if ($new_log_permissions['edit']) $log_desc_parts[] = "Edit:Yes"; else $log_desc_parts[] = "Edit:No";
+                        if ($new_log_permissions['view']) $log_desc_parts[] = "View:Yes"; else $log_desc_parts[] = "View:No";
+
+                        log_and_notify($connection, $active_board_id, $user_id, 'settings_updated', 
+                            "Activity log visibility settings updated by " . $_SESSION['username'] . 
+                            " (" . implode(", ", $log_desc_parts) . ")", 
+                            null, null, get_board_associated_user_ids($connection, $active_board_id));
+                    } else {
+                        $error = "Settings may not have been saved (no change detected or error).";
+                    }
+                } else {
+                    $error = "Error updating activity log visibility: " . $stmt_update_visibility->error;
+                }
+                $stmt_update_visibility->close();
+            } else {
+                $error = "Error preparing visibility update: " . $connection->error;
+            }
+        } else {
+            if (!$board_details) {
+                $error = "Cannot update settings: Board details not found.";
+            } elseif ($current_user_permission_on_active_board != 'owner') {
+                $error = "You do not have permission to change this setting.";
+            } elseif ($board_details['is_archived'] ?? 0) {
+                $error = "Cannot change settings for an archived project.";
+            }
+        }
+    }
+
     // --- HANDLE DELETE PROJECT (from Modal) ---
-    // The hidden input name="delete_project" value="1" will be set by the modal's form.
     if (isset($_POST['delete_project']) && isset($_POST['board_id_to_delete'])) {
-        $redirect_to_hash = ""; // Will redirect to project_settings.php without board_id on success
+        $redirect_to_hash = ""; 
         $board_id_to_actually_delete = (int)$_POST['board_id_to_delete'];
         $confirmation_text_typed = $_POST['confirm_project_name'] ?? '';
 
-        // Ensure the board_id from the form matches the active_board_id context for safety
-        // and that the current user is the owner.
         if ($board_id_to_actually_delete === $active_board_id && $current_user_permission_on_active_board == 'owner') {
             if (!($board_details['is_archived'] ?? 0)) { 
-                // Server-side confirmation of the typed project name
                 if ($confirmation_text_typed === $board_details['board_name']) {
                     $board_name_to_log = $board_details['board_name'];
                     $sql_delete = "UPDATE Planner_Boards SET is_deleted = 1, updated_at = CURRENT_TIMESTAMP WHERE board_id = ? AND user_id = ?";
@@ -449,7 +517,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
                     } else { $error = "Error preparing delete statement: " . $connection->error; }
                 } else {
                     $error = "Project name confirmation did not match. Deletion cancelled.";
-                    $redirect_to_hash = "#advanced"; // Stay on advanced tab to show error with modal context
+                    $redirect_to_hash = "#advanced"; 
                 }
             } else {
                 $error = "Project must be unarchived before deletion.";
@@ -458,23 +526,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
         } else {
             if ($board_id_to_actually_delete !== $active_board_id) {
                  $error = "Board ID mismatch for deletion. Please try again.";
-            } else { // Not owner
+            } else { 
                  $error = "Only the project owner can delete the project.";
             }
             $redirect_to_hash = "#advanced";
         }
     }
 
-
     // --- HANDLE LEAVE PROJECT ---
     if (isset($_POST['leave_project_submit'])) {
-        // Check if the current user is indeed a collaborator and not the owner
         if ($current_user_permission_on_active_board && $current_user_permission_on_active_board !== 'owner') {
-            if (!($board_details['is_archived'] ?? 0)) { // Cannot leave an archived project via this UI maybe? Or allow? For now, disallow.
-                
-                // Get current user's username for logging
+            if (!($board_details['is_archived'] ?? 0)) { 
                 $stmt_leaver_username = $connection->prepare("SELECT username FROM Planner_Users WHERE user_id = ?");
-                $leaver_username = "User ID " . $user_id; // Fallback
+                $leaver_username = "User ID " . $user_id; 
                 if($stmt_leaver_username) {
                     $stmt_leaver_username->bind_param("i", $user_id);
                     $stmt_leaver_username->execute();
@@ -485,7 +549,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
                     $stmt_leaver_username->close();
                 }
 
-
                 $sql_leave = "DELETE FROM Planner_Collaborators WHERE board_id = ? AND user_id = ?";
                 $stmt_leave = $connection->prepare($sql_leave);
                 if ($stmt_leave) {
@@ -493,28 +556,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
                     if ($stmt_leave->execute()) {
                         if ($stmt_leave->affected_rows > 0) {
                             $message = "You have successfully left the project '" . htmlspecialchars($board_details['board_name']) . "'.";
-                            
-                            // Log this activity
                             $activity_description = htmlspecialchars($leaver_username) . " left the project \"" . htmlspecialchars($board_details['board_name']) . "\".";
-                            // Notify owner and maybe admins
-                            $recipients = [$board_details['user_id']]; // Notify at least the owner
-                            // Optionally, get other admins if you want them notified too
-                            // $other_admins = get_board_admins($connection, $active_board_id, [$user_id, $board_details['user_id']]); // exclude self, exclude owner
-                            // $recipients = array_unique(array_merge($recipients, $other_admins));
-
-                            log_and_notify(
-                                $connection,
-                                $active_board_id,
-                                $user_id, // The user who performed the action (leaving)
-                                'collaborator_left', // New activity type
-                                $activity_description,
-                                $user_id, // related_entity_id can be the user_id who left
-                                'user',   // related_entity_type
-                                $recipients
-                            );
-
+                            $recipients = [$board_details['user_id']]; 
+                            log_and_notify( $connection, $active_board_id, $user_id, 'collaborator_left', $activity_description, $user_id, 'user', $recipients );
                             $_SESSION['settings_message'] = $message;
-                            header("Location: project_settings.php"); // Redirect to the main settings page (no board_id, as they lost access)
+                            header("Location: project_settings.php"); 
                             exit();
                         } else {
                             $error = "Could not leave the project. You might not have been a collaborator or an error occurred.";
@@ -532,11 +578,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
         } else {
             $error = "Only collaborators can leave a project. Owners must transfer ownership or delete the project.";
         }
-        // If an error occurred during leave project, stay on the page with error
-        $redirect_to_hash = ($current_user_permission_on_active_board && $current_user_permission_on_active_board !== 'owner') ? "#general" : ""; // Or appropriate hash
+        $redirect_to_hash = ($current_user_permission_on_active_board && $current_user_permission_on_active_board !== 'owner') ? "#general" : ""; 
     }
 
-    // After any POST action, store messages and redirect to show them and prevent re-submission
     $_SESSION['settings_message'] = $message;
     $_SESSION['settings_error'] = $error;
     header("Location: project_settings.php?board_id=" . $active_board_id . $redirect_to_hash);
@@ -544,6 +588,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
 
 } // End of POST processing
 ?>
+
+<!-- HTML part is now IDENTICAL to your original "old functional version" -->
+<!-- This ensures that white mode styling relies purely on Tailwind's base styles -->
+<!-- and your dark-theme.css will override them when html.dark-mode is active. -->
 
 <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
     <!-- Sidebar with projects list -->
@@ -607,20 +655,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
             </div>
         <?php elseif ($board_details && $current_user_permission_on_active_board): ?>
             <?php if ($message): ?><div class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4" role="alert"><?= htmlspecialchars($message) ?></div><?php endif; ?>
-            <?php if ($error && $_SERVER['REQUEST_METHOD'] !== 'POST'): /* Show error if not a POST that redirects */ ?>
+            <?php if ($error && $_SERVER['REQUEST_METHOD'] !== 'POST'): ?>
                 <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4" role="alert"><?= htmlspecialchars($error) ?></div>
             <?php endif; ?>
             
-            <div class="mb-6 border-b">
+            <div class="mb-6 border-b border-gray-200">
                 <ul class="flex flex-wrap -mb-px" id="settings-tabs-nav">
                     <li class="mr-2"><a href="#general" class="inline-block py-2 px-4 text-gray-600 hover:text-[#e63946] font-medium" onclick="showTab('general', this); return false;">General Settings</a></li>
+                    
                     <?php if ($current_user_permission_on_active_board == 'owner' || $current_user_permission_on_active_board == 'admin'): ?>
                         <li class="mr-2"><a href="#collaborators" class="inline-block py-2 px-4 text-gray-600 hover:text-[#e63946] font-medium" onclick="showTab('collaborators', this); return false;">Collaborators</a></li>
                     <?php endif; ?>
+                    
                     <li class="mr-2"><a href="#notifications" class="inline-block py-2 px-4 text-gray-600 hover:text-[#e63946] font-medium" onclick="showTab('notifications', this); return false;">Notifications</a></li>
+                    
+                    <?php
+                    $show_activity_log_tab_link = false;
+                    if ($current_user_permission_on_active_board == 'owner') {
+                        $show_activity_log_tab_link = true;
+                    } elseif ($board_details) { 
+                        $role_for_tab_check = $current_user_permission_on_active_board;
+                        if ($role_for_tab_check == 'admin' && $log_access_admin_setting) {
+                            $show_activity_log_tab_link = true;
+                        } elseif ($role_for_tab_check == 'edit' && $log_access_edit_setting) {
+                            $show_activity_log_tab_link = true;
+                        } elseif ($role_for_tab_check == 'view' && $log_access_view_setting) {
+                            $show_activity_log_tab_link = true;
+                        }
+                    }
+                    ?>
+                    <?php if ($show_activity_log_tab_link): ?>
+                         <li class="mr-2"><a href="#activity" class="inline-block py-2 px-4 text-gray-600 hover:text-[#e63946] font-medium" onclick="showTab('activity', this); return false;">Activity Log</a></li>
+                    <?php endif; ?>
+
                     <?php if ($current_user_permission_on_active_board == 'owner'): ?>
                         <li class="mr-2"><a href="#advanced" class="inline-block py-2 px-4 text-gray-600 hover:text-[#e63946] font-medium" onclick="showTab('advanced', this); return false;">Advanced Settings</a></li>
-                        <li class="mr-2"><a href="#activity" class="inline-block py-2 px-4 text-gray-600 hover:text-[#e63946] font-medium" onclick="showTab('activity', this); return false;">Activity Log</a></li>
                     <?php endif; ?>
                 </ul>
             </div>
@@ -640,9 +709,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
                     <?php endif; ?>
                 </form>
 
-                <?php // --- LEAVE PROJECT BUTTON for Collaborators ---
-                if ($current_user_permission_on_active_board && $current_user_permission_on_active_board !== 'owner' && !($board_details['is_archived'] ?? 0) ): 
-                ?>
+                <?php if ($current_user_permission_on_active_board && $current_user_permission_on_active_board !== 'owner' && !($board_details['is_archived'] ?? 0) ): ?>
                     <hr class="my-8 border-gray-300">
                     <div class="mt-6 p-4 border border-red-300 rounded-lg bg-red-50">
                         <h3 class="text-lg font-semibold mb-2 text-red-700">Leave Project</h3> 
@@ -656,7 +723,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
                         </form>
                     </div>
                 <?php endif; ?>
-
             </div>
             
             <!-- Collaborators Tab -->
@@ -686,9 +752,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
                                         if ($current_user_permission_on_active_board == 'owner' && !$is_this_collaborator_the_board_owner) {
                                             $can_logged_in_user_manage_this_collaborator = true;
                                         } elseif ($current_user_permission_on_active_board == 'admin') {
-                                            if (!$is_this_collaborator_the_board_owner && // Not the owner
-                                                $collab['permission_level'] != 'admin' && // Not another admin
-                                                $collab['collaborator_user_id'] != $user_id // Not managing self (admin cannot demote self)
+                                            if (!$is_this_collaborator_the_board_owner && 
+                                                $collab['permission_level'] != 'admin' && 
+                                                $collab['collaborator_user_id'] != $user_id 
                                             ) {
                                                 $can_logged_in_user_manage_this_collaborator = true;
                                             }
@@ -706,13 +772,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
                                                         <select name="new_permission_level" class="px-2 py-1 border rounded-lg text-sm focus:outline-none focus:ring-1 focus:ring-[#e63946] w-auto">
                                                             <option value="view" <?= ($collab['permission_level'] == 'view') ? 'selected' : '' ?>>View</option>
                                                             <option value="edit" <?= ($collab['permission_level'] == 'edit') ? 'selected' : '' ?>>Edit</option>
-                                                            <?php if ($current_user_permission_on_active_board == 'owner'): // Only owner can promote to admin ?>
+                                                            <?php if ($current_user_permission_on_active_board == 'owner'): ?>
                                                             <option value="admin" <?= ($collab['permission_level'] == 'admin') ? 'selected' : '' ?>>Admin</option>
                                                             <?php endif; ?>
                                                         </select>
                                                         <button type="submit" name="update_collaborator_permission" class="text-xs bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded">Save</button>
                                                     </form>
-                                                <?php else: // Cannot manage, just display current permission ?>
+                                                <?php else: ?>
                                                     <span class="px-2 py-1 text-sm text-gray-700"><?= ucfirst(htmlspecialchars($collab['permission_level'])) ?></span>
                                                 <?php endif; ?>
                                             </td>
@@ -781,7 +847,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
                                 <select id="invitation_permission_level" name="permission_level" class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#e63946]">
                                     <option value="view">View</option>
                                     <option value="edit">Edit</option>
-                                    <?php if ($current_user_permission_on_active_board == 'owner'): // Only owner can invite as admin ?>
+                                    <?php if ($current_user_permission_on_active_board == 'owner'): ?>
                                     <option value="admin">Admin</option>
                                     <?php endif; ?>
                                 </select>
@@ -795,7 +861,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
             </div>
             <?php endif; ?>
             
-            <!-- Notifications Tab (Always available for the logged-in user for this board) -->
+            <!-- Notifications Tab -->
             <div id="notifications-tab" class="settings-tab hidden">
                 <h2 class="text-xl font-bold mb-4">My Notification Settings for "<?= htmlspecialchars($board_details['board_name']) ?>"</h2>
                 <?php if ($notification_settings['source'] === 'global'): ?> <div class="mb-4 p-3 bg-blue-100 border-l-4 border-blue-500 text-blue-700"><p><i class="fas fa-info-circle mr-2"></i>Using your <strong>global default</strong> notification preferences. Changes saved here will be specific to "<?= htmlspecialchars($board_details['board_name']) ?>".</p></div>
@@ -837,17 +903,54 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
             <!-- Advanced Tab (OWNER ONLY) -->
             <?php if ($current_user_permission_on_active_board == 'owner'): ?>
             <div id="advanced-tab" class="settings-tab hidden">
-                <h2 class="text-xl font-bold mb-4">Advanced Settings</h2>
-                <!-- ... (Export/Integrations placeholders) ... -->
+                <h2 class="text-xl font-bold mb-4 text-gray-800">Advanced Settings</h2>
+                
+                <div class="mt-6">
+                    <h4 class="text-md font-semibold text-gray-700 mb-1">Activity Log Visibility for Collaborator Roles</h4>
+                    <p class="text-sm text-gray-600 mb-3">Control which collaborator roles can view this project's activity log. Owners always have access.</p>
+                    <form method="post" action="project_settings.php?board_id=<?= $active_board_id ?>">
+                        <input type="hidden" name="action_update_log_visibility" value="1">
+                        <div class="space-y-3">
+                            <label class="flex items-center">
+                                <input type="checkbox" name="log_access_roles[admin]" value="1"
+                                       class="form-checkbox h-5 w-5 text-[#e63946] rounded focus:ring-[#e63946] border-gray-300"
+                                       <?= $log_access_admin_setting ? 'checked' : '' ?>
+                                       <?= ($board_details['is_archived'] ?? 0) ? 'disabled' : '' ?>>
+                                <span class="ml-2 text-gray-700">Allow 'Admin' collaborators to view activity log.</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" name="log_access_roles[edit]" value="1"
+                                       class="form-checkbox h-5 w-5 text-[#e63946] rounded focus:ring-[#e63946] border-gray-300"
+                                       <?= $log_access_edit_setting ? 'checked' : '' ?>
+                                       <?= ($board_details['is_archived'] ?? 0) ? 'disabled' : '' ?>>
+                                <span class="ml-2 text-gray-700">Allow 'Edit' collaborators to view activity log.</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="checkbox" name="log_access_roles[view]" value="1"
+                                       class="form-checkbox h-5 w-5 text-[#e63946] rounded focus:ring-[#e63946] border-gray-300"
+                                       <?= $log_access_view_setting ? 'checked' : '' ?>
+                                       <?= ($board_details['is_archived'] ?? 0) ? 'disabled' : '' ?>>
+                                <span class="ml-2 text-gray-700">Allow 'View' collaborators to view activity log.</span>
+                            </label>
+                        </div>
+                        <?php if (!($board_details['is_archived'] ?? 0)): ?>
+                        <div class="mt-4">
+                            <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm">Save Log Visibility</button>
+                        </div>
+                        <?php endif; ?>
+                    </form>
+                </div>
+                
+                <hr class="my-8 border-gray-300">
+
                 <div class="p-4 border border-red-300 rounded-lg bg-red-50">
-                    <h3 class="text-lg font-semibold mb-3 text-red-700">Danger Zone</h3>
+                   <h3 class="text-lg font-semibold mb-3 text-red-700">Danger Zone</h3>
                     <p class="text-gray-700 mb-4">These actions may be irreversible. Please proceed with caution.</p>
                     <div class="flex flex-wrap gap-3">
                         <form method="post" action="project_settings.php?board_id=<?= $active_board_id ?>" onsubmit="return confirm('Are you sure you want to <?= ($board_details['is_archived'] ?? 0) ? 'unarchive' : 'archive' ?> this project?');" class="inline-block">
                             <?php if ($board_details['is_archived'] ?? 0): ?> <button type="submit" name="unarchive_project" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><i class="fas fa-undo"></i> Unarchive Project</button>
                             <?php else: ?> <button type="submit" name="archive_project" class="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg flex items-center gap-2"><i class="fas fa-archive"></i> Archive Project</button> <?php endif; ?>
                         </form>
-                        <!-- MODIFIED Delete Project Button -->
                         <button type="button" 
                                 onclick="openDeleteProjectModal('<?= htmlspecialchars(addslashes($board_details['board_name']), ENT_QUOTES) ?>', <?= $active_board_id ?>)" 
                                 class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center gap-2" 
@@ -901,82 +1004,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
                 </div>
             </div>
 
-            <!-- Activity Log Tab (OWNER ONLY for now) -->
-            <?php if ($current_user_permission_on_active_board == 'owner'): ?>
+            <!-- Activity Log Tab -->
+            <?php
+            $can_view_project_activity_log = false;
+            if ($current_user_permission_on_active_board == 'owner') {
+                $can_view_project_activity_log = true;
+            } else if ($board_details) { 
+                $role_tab = $current_user_permission_on_active_board;
+                if ($role_tab == 'admin' && $log_access_admin_setting) {
+                    $can_view_project_activity_log = true;
+                } elseif ($role_tab == 'edit' && $log_access_edit_setting) {
+                    $can_view_project_activity_log = true;
+                } elseif ($role_tab == 'view' && $log_access_view_setting) {
+                    $can_view_project_activity_log = true;
+                }
+            }
+            ?>
+            <?php if ($can_view_project_activity_log): ?>
             <div id="activity-tab" class="settings-tab hidden">
                 <h2 class="text-xl font-bold mb-4">Project Activity Log</h2>
-                <div class="mb-4 flex flex-wrap justify-between items-center gap-3">
-                    <div>
-                        <label for="activity-filter" class="sr-only">Filter activities</label>
-                        <select id="activity-filter" class="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-[#e63946]">
-                            <option value="all">All Activities</option>
-                            <option value="task">Tasks</option>
-                            <option value="collaborator">Collaborators</option>
-                            <option value="settings">Settings</option>
-                            <option value="project">Project Status</option>
-                        </select>
-                    </div>
-                    <div>
-                        <button class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-4 py-2 rounded-lg flex items-center gap-2">
-                            <i class="fas fa-calendar-alt"></i> Filter by Date <!-- Placeholder -->
-                        </button>
-                    </div>
-                </div>
-                <?php
-                // Ensure Planner_ActivityLog table exists
-                $sql_create_activity_table = "CREATE TABLE IF NOT EXISTS Planner_ActivityLog (
-                    activity_id INT AUTO_INCREMENT PRIMARY KEY, 
-                    board_id INT NOT NULL, 
-                    user_id INT NOT NULL, 
-                    activity_type VARCHAR(50) NOT NULL, 
-                    activity_description TEXT NOT NULL, 
-                    related_entity_id INT NULL, 
-                    related_entity_type VARCHAR(50) NULL, 
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
-                    FOREIGN KEY (board_id) REFERENCES Planner_Boards(board_id) ON DELETE CASCADE, 
-                    FOREIGN KEY (user_id) REFERENCES Planner_Users(user_id) ON DELETE CASCADE
-                )";
-                $connection->query($sql_create_activity_table);
-
-                $activities = [];
-                if ($active_board_id > 0) { // Check if a board is active
-                    $sql_activities_fetch = "SELECT a.*, u.username 
+                 <?php
+                $activities_project = []; 
+                if ($active_board_id > 0) {
+                    $sql_activities_fetch_project = "SELECT a.*, u.username 
                                        FROM Planner_ActivityLog a 
                                        JOIN Planner_Users u ON a.user_id = u.user_id 
                                        WHERE a.board_id = ? 
-                                       ORDER BY a.created_at DESC LIMIT 50"; // Renamed variable
-                    $stmt_activities_fetch = $connection->prepare($sql_activities_fetch);
-                    if ($stmt_activities_fetch) {
-                        $stmt_activities_fetch->bind_param("i", $active_board_id);
-                        $stmt_activities_fetch->execute();
-                        $result_activities_fetch = $stmt_activities_fetch->get_result();
-                        while ($activity_row = $result_activities_fetch->fetch_assoc()) { // Renamed variable
-                            $activities[] = $activity_row;
+                                       ORDER BY a.created_at DESC LIMIT 50";
+                    $stmt_activities_fetch_project = $connection->prepare($sql_activities_fetch_project);
+                    if ($stmt_activities_fetch_project) {
+                        $stmt_activities_fetch_project->bind_param("i", $active_board_id);
+                        $stmt_activities_fetch_project->execute();
+                        $result_activities_fetch_project = $stmt_activities_fetch_project->get_result();
+                        while ($activity_row_project = $result_activities_fetch_project->fetch_assoc()) {
+                            $activities_project[] = $activity_row_project;
                         }
-                        $stmt_activities_fetch->close();
+                        $stmt_activities_fetch_project->close();
                     } else {
-                        if (!$error) $error = "Error preparing activity log query.";
+                        if (!$error) $error = "Error preparing project activity log query.";
                     }
                 }
                 ?>
-                <div class="bg-white border rounded-lg overflow-hidden">
-                    <?php if (empty($activities)): ?>
+                <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                    <?php if (empty($activities_project)): ?>
                         <div class="p-8 text-center">
                             <i class="far fa-clock text-4xl text-gray-300 mb-3"></i>
                             <p class="text-gray-500">No activity recorded for this project yet.</p>
                         </div>
                     <?php else: ?>
                         <div class="divide-y divide-gray-200">
-                            <?php foreach ($activities as $activity_item): // Renamed variable ?>
+                            <?php foreach ($activities_project as $activity_item): ?>
                                 <?php
                                 $icon_class = 'fas fa-info-circle text-blue-500'; 
                                 $activity_type_key = strtolower($activity_item['activity_type']);
-                                $icon_map = [
+                                $icon_map = [ 
                                     'task_created' => 'fas fa-plus-circle text-green-500', 'task_updated' => 'fas fa-edit text-blue-500', 
                                     'task_deleted' => 'fas fa-trash-alt text-red-500', 'task_moved' => 'fas fa-arrows-alt text-indigo-500', 
                                     'task_completed' => 'fas fa-check-circle text-green-600', 'task_reopened'  => 'fas fa-undo text-yellow-500', 
                                     'comment_added'  => 'fas fa-comment text-gray-500', 'collaborator_added' => 'fas fa-user-plus text-purple-500', 
                                     'collaborator_removed' => 'fas fa-user-minus text-orange-500', 
+                                    'collaborator_left' => 'fas fa-sign-out-alt text-orange-600',
                                     'collaborator_permission_changed' => 'fas fa-user-shield text-teal-500', 
                                     'settings_updated' => 'fas fa-cog text-gray-600', 'board_created' => 'fas fa-chalkboard text-pink-500', 
                                     'project_archived' => 'fas fa-archive text-yellow-600', 'project_unarchived' => 'fas fa-undo text-green-600', 
@@ -994,7 +1081,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
                                     $activity_date = new DateTime($timestamp_from_db);
                                     $formatted_date = $activity_date->format('M d, Y H:i');
                                 } catch (Exception $e) {
-                                    error_log("Error parsing date for activity log (Project Settings): " . $e->getMessage() . " - Timestamp: " . $timestamp_from_db);
+                                    error_log("Error parsing date for activity log (Project Settings Tab): " . $e->getMessage() . " - Timestamp: " . $timestamp_from_db);
                                     $formatted_date = "Invalid date";
                                 }
                                 ?>
@@ -1017,8 +1104,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
                         </div>
                     <?php endif; ?>
                 </div>
-                <?php if (count($activities) >= 50): ?>
-                    <div class="mt-6 text-center"><button class="text-blue-600 hover:underline">Load More Activities</button></div>
+                 <?php if (isset($activities_project) && count($activities_project) >= 50): ?>
+                    <div class="mt-6 text-center"><a href="activity_log_all.php?board_id=<?= $active_board_id ?>" class="text-blue-600 hover:underline">View All Activities for this Project</a></div>
                 <?php endif; ?>
             </div>
             <?php endif; ?>
