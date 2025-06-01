@@ -808,13 +808,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $active_board_id > 0 && $board_deta
                         <h3 class="font-semibold mb-3 text-lg">Notify me when:</h3>
                         <p class="text-sm text-gray-600 mb-4">Select which activities on this board should trigger a notification for you.</p>
                         <div class="space-y-4">
-                            <?php $event_notifications_map = [ /* ... as before ... */ 
+                            <?php $event_notifications_map = [ 
                                 'notify_task_created' => 'A new task is created on this board',
                                 'notify_task_assignment' => 'A task is assigned to me or I am @mentioned in a task',
                                 'notify_task_status_changed' => 'Status of my task or a task I follow changes',
                                 'notify_task_updated' => 'Details of my task or a task I follow are updated',
                                 'notify_new_comment' => "New comments on tasks I'm involved with or @mentioned in",
-                                'notify_deadline_reminder' => 'Reminders for my approaching task deadlines',
                                 'notify_collaborator_added' => 'A new collaborator joins this board',
                                 'notify_task_deleted' => 'A task is deleted from this board',
                                 'notify_new_chat_message' => 'New chat messages related to this board (if applicable)',

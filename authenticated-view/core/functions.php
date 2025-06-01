@@ -174,7 +174,6 @@ function log_and_notify(
         'task_deleted'          => 'notify_task_deleted',
         'new_comment'           => 'notify_new_comment',
         'comment_added'         => 'notify_new_comment',           // Alias
-        'deadline_reminder'     => 'notify_deadline_reminder',
         'collaborator_added'    => 'notify_collaborator_added',    // User X joined board Y
         'collaborator_left'     => 'notify_project_management',
         'invitation_sent'       => 'notify_project_management',    // For owner: an invite was sent for their board
