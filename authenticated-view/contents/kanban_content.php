@@ -16,7 +16,7 @@ require_once '../admin/database/connection.php'; // Adjusted path
 $user_id = $_SESSION['user_id'];
 $board_id = isset($_GET['board_id']) ? intval($_GET['board_id']) : 0;
 
-$board_name = "Kanban Board";
+$board_name_php = "Kanban Board";
 $board_columns_data = [];
 $board_tasks_data = [];
 $board_collaborators_for_assignment = []; 
@@ -38,7 +38,7 @@ if ($board_id > 0) {
     $access_result = $access_stmt->get_result();
 
     if ($board_row_data = $access_result->fetch_assoc()) { 
-        $board_name = htmlspecialchars($board_row_data['board_name']);
+        $board_name_php = htmlspecialchars($board_row_data['board_name']);
         $board_owner_id = (int)$board_row_data['board_owner_id'];
         $is_board_archived = (int)$board_row_data['is_archived']; 
         $is_owner = ($board_owner_id == $user_id);
@@ -180,13 +180,14 @@ if ($board_id > 0) {
 
 $board_data_for_js = [
     'board_id' => $board_id,
+    'board_name' => $board_name_php,
     'columns' => $board_columns_data,
     'tasks' => $board_tasks_data,
     'permission_level' => $permission_level,
     'user_id' => $user_id,
     'collaborators' => $board_collaborators_for_assignment,
     'is_archived' => $is_board_archived,
-    'updated_at' => $board_updated_at // Add this line
+    'updated_at' => $board_updated_at
 ];
 $board_data_json = json_encode($board_data_for_js);
 ?>
@@ -248,7 +249,7 @@ $board_data_json = json_encode($board_data_for_js);
 
 <div class="flex justify-between items-center border-b pb-4 md:pb-6 mb-6 md:mb-8">
     <div class="flex items-center" id="boardHeaderInfo">
-        <h2 id="boardNameDisplay" class="text-2xl md:text-3xl font-bold text-[#e63946]"><?= $board_name ?></h2>
+        <h2 id="boardNameDisplay" class="text-2xl md:text-3xl font-bold text-[#e63946]"><?= $board_name_php ?></h2>
         <?php if ($is_board_archived): ?>
             <span class="ml-3 bg-yellow-200 text-yellow-800 text-xs font-semibold px-2.5 py-0.5 rounded-full archived-badge">Archived</span>
         <?php endif; ?>
@@ -343,8 +344,10 @@ $board_data_json = json_encode($board_data_for_js);
     
 <?php endif; ?>
 
+<!-- ... (all your PHP and HTML above this point in kanban_content.php remains the same) ... -->
+
 <script>
-    let boardData = <?= $board_data_json ?>; // Changed from const to let
+    let boardData = <?= $board_data_json ?>;
     const AJAX_BASE_URL = 'ajax_handlers/';
 
     // --- Polling Variables ---
@@ -362,42 +365,49 @@ $board_data_json = json_encode($board_data_for_js);
     }
 
     $(document).ready(function() {
+        console.log("KANBAN: Document Ready. Initial boardData from PHP:", JSON.parse(JSON.stringify(boardData)));
+
         if (boardData.board_id > 0) {
-            currentBoardUpdatedAt = boardData.updated_at;
+            currentBoardUpdatedAt = boardData.updated_at || null;
             currentBoardIsArchived = parseInt(boardData.is_archived);
 
             initializeBoard(); // Initial full board render
 
-            // Task form submission (this form is static, so binding once is fine)
             $('#taskForm').submit(function(e) {
                 e.preventDefault();
-                if (boardData.permission_level !== 'read' && !boardData.is_archived) {
+                if (boardData.permission_level !== 'read' && !parseInt(boardData.is_archived)) {
                     saveTask();
                 } else {
-                    alert(boardData.is_archived ? 'This project is archived. No new tasks can be added or edited.' : 'You have read-only access.');
+                    alert(parseInt(boardData.is_archived) ? 'This project is archived. No new tasks can be added or edited.' : 'You have read-only access.');
                 }
             });
 
-            // Start polling for board updates
             if (boardUpdatePoller) clearInterval(boardUpdatePoller);
             boardUpdatePoller = setInterval(checkForBoardUpdates, POLLING_INTERVAL);
 
-            // Pause polling when tab is not active, resume when active
             document.addEventListener('visibilitychange', function() {
                 if (!boardData || boardData.board_id <= 0) return;
-
                 if (document.hidden) {
                     if (boardUpdatePoller) clearInterval(boardUpdatePoller);
                 } else {
-                    checkForBoardUpdates(); // Check immediately on becoming visible
+                    checkForBoardUpdates();
                     if (boardUpdatePoller) clearInterval(boardUpdatePoller);
                     boardUpdatePoller = setInterval(checkForBoardUpdates, POLLING_INTERVAL);
                 }
             });
 
         } else {
-            // No board selected or error, no specific JS initialization needed beyond what PHP shows
-            console.log("No board ID, or boardData is not fully populated. Polling not started.");
+            console.log("KANBAN: No valid board_id on initial load. boardData:", JSON.parse(JSON.stringify(boardData)));
+            // If no board_id, the PHP part already shows a message.
+            // We might still want to hide/disable parts of the UI if #kanbanBoard exists.
+            // The PHP already outputs a message, so JS might not need to do much here unless
+            // there are JS-driven UI elements that need explicit hiding.
+            const $kanbanBoardElement = $('#kanbanBoard');
+            if ($kanbanBoardElement.length && !$kanbanBoardElement.find('.bg-yellow-100').length) { // Check if PHP message isn't already there
+                 $kanbanBoardElement.empty().html('<div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-6" role="alert"><p>No board selected or board data is incomplete. Please select a board from your dashboard.</p></div>');
+            }
+            const $addColumnPlaceholder = $('#addColumnPlaceholder');
+            if ($addColumnPlaceholder.length) $addColumnPlaceholder.hide();
         }
     });
 
@@ -405,9 +415,9 @@ $board_data_json = json_encode($board_data_for_js);
         if (isLoadingBoardUpdates || !boardData || !boardData.board_id || boardData.board_id <= 0) {
             return;
         }
-
+        const cacheBuster = new Date().getTime();
         $.ajax({
-            url: AJAX_BASE_URL + 'check_board_update.php',
+            url: `${AJAX_BASE_URL}check_board_update.php?t=${cacheBuster}`,
             type: 'GET',
             data: { board_id: boardData.board_id },
             dataType: 'json',
@@ -417,20 +427,19 @@ $board_data_json = json_encode($board_data_for_js);
                     const remoteIsArchived = parseInt(response.is_archived);
 
                     if (remoteUpdatedAt !== currentBoardUpdatedAt || remoteIsArchived !== currentBoardIsArchived) {
-                        console.log('Board changes detected. Timestamp or Archived status differs. Fetching new data.');
+                        console.log('KANBAN: Board changes detected. Fetching new data.');
                         fetchAndReinitializeBoard();
                     }
                 } else {
-                    console.error('Error checking for board updates:', response.message);
+                    console.error('KANBAN: Error checking for board updates:', response.message);
                     if (response.stop_polling) {
                         if (boardUpdatePoller) clearInterval(boardUpdatePoller);
                         // alert("This board is no longer accessible. Further updates will not be loaded.");
-                        // Optionally, redirect or show a persistent message
                     }
                 }
             },
             error: function(xhr) {
-                console.error('Failed to connect for board update check.', xhr.responseText);
+                console.error('KANBAN: Failed to connect for board update check.', xhr.responseText);
             }
         });
     }
@@ -438,68 +447,95 @@ $board_data_json = json_encode($board_data_for_js);
     function fetchAndReinitializeBoard() {
         if (isLoadingBoardUpdates) return;
         isLoadingBoardUpdates = true;
-        console.log('Fetching updated board data...');
-
-        // Optional: Show a subtle loading indicator
-        // $('body').append('<div id="board-update-indicator" style="position:fixed;top:10px;right:10px;background:rgba(0,0,0,0.7);color:white;padding:5px 10px;border-radius:5px;z-index:1000;">Updating board...</div>');
-
+        console.log('KANBAN: Fetching updated board data...');
+        const cacheBuster = new Date().getTime();
         $.ajax({
-            url: AJAX_BASE_URL + 'get_board_data.php',
+            url: `${AJAX_BASE_URL}get_board_data.php?t=${cacheBuster}`,
             type: 'GET',
             data: { board_id: boardData.board_id },
             dataType: 'json',
             success: function(newFullBoardData) {
-                if (newFullBoardData && newFullBoardData.board_id) {
-                    boardData = newFullBoardData; // CRITICAL: Update the global boardData object
-                    currentBoardUpdatedAt = boardData.updated_at;
+                if (newFullBoardData && newFullBoardData.board_id) { // Check for a valid board_id in response
+                    boardData = newFullBoardData;
+                    currentBoardUpdatedAt = boardData.updated_at || null;
                     currentBoardIsArchived = parseInt(boardData.is_archived);
-
-                    initializeBoard(); // Re-initialize the entire board display with new data
-
-                    console.log('Board re-initialized with new data.');
+                    initializeBoard();
+                    console.log('KANBAN: Board re-initialized with new data.');
                 } else {
-                    console.error('Received invalid data from get_board_data.php. Full response:', newFullBoardData);
+                    console.error('KANBAN: Received invalid data from get_board_data.php. Full response:', newFullBoardData);
                     // Potentially stop polling or show error to user
+                    // alert("Error fetching board details. The board might no longer be accessible.");
+                    // if (boardUpdatePoller) clearInterval(boardUpdatePoller);
                 }
             },
             error: function(xhr) {
-                console.error('Failed to fetch full board data.', xhr.responseText);
+                console.error('KANBAN: Failed to fetch full board data.', xhr.responseText);
+                // alert("Failed to refresh board data. Please check your connection or try again later.");
             },
             complete: function() {
                 isLoadingBoardUpdates = false;
-                // Optional: Remove loading indicator
-                // $('#board-update-indicator').remove();
             }
         });
     }
 
     function initializeBoard() {
+        console.log("--- KANBAN: initializeBoard() CALLED ---");
+        console.log("Current boardData.board_id:", boardData.board_id);
+        console.log("Current boardData.board_name:", boardData.board_name);
+        const boardNameDisplayElement = document.getElementById('boardNameDisplay');
+        if (boardNameDisplayElement) {
+            console.log("HTML content of #boardNameDisplay BEFORE JS update:", boardNameDisplayElement.innerHTML);
+        } else {
+            console.error("KANBAN: #boardNameDisplay element NOT FOUND!");
+        }
+
         // 1. Clear existing columns from the board
         $('#kanbanBoard .kanban-column').remove();
 
         // 2. Update Board Name
-        $('#boardNameDisplay').text(sanitizeHTML(boardData.board_name));
+        if (boardData.board_name && boardNameDisplayElement) {
+            $(boardNameDisplayElement).text(sanitizeHTML(boardData.board_name));
+            console.log("HTML content of #boardNameDisplay AFTER JS update:", boardNameDisplayElement.innerHTML);
+        } else {
+            console.warn("KANBAN: Board name in JS boardData or #boardNameDisplay element missing. Name not updated by JS.");
+            if (boardNameDisplayElement && (!boardData.board_name && boardData.board_id > 0) ) {
+                // This case is problematic: element exists, board_id is valid, but name is missing in JS data.
+                // This points to an issue in get_board_data.php not returning board_name.
+                $(boardNameDisplayElement).text("Board (Name Error)");
+                console.error("KANBAN: boardData.board_name is missing from JS data, but board_id is present!");
+            } else if (boardNameDisplayElement && boardData.board_id <= 0) {
+                // If no valid board, PHP should have set a default or message.
+                // JS shouldn't clear it unless boardData.board_name is explicitly empty.
+                // The PHP part already handles displaying "Kanban Board" or an error message.
+                // So, if boardData.board_name is the default "Kanban Board", this is fine.
+                // If boardData.board_name is empty and board_id is 0, we let PHP's output stand.
+                if (boardData.board_name) { // Only update if JS has a name (even default)
+                     $(boardNameDisplayElement).text(sanitizeHTML(boardData.board_name));
+                }
+            }
+        }
 
         // 3. Update Archived Status Badge & Permission Badge
-        const $boardHeaderInfo = $('#boardHeaderInfo'); // Assuming you have this ID on the div containing name and badges
+        const $boardHeaderInfo = $('#boardHeaderInfo');
         $boardHeaderInfo.find('.archived-badge').remove();
         $boardHeaderInfo.find('.permission-badge').remove();
 
         if (parseInt(boardData.is_archived) === 1) {
             $('#boardNameDisplay').after('<span class="ml-3 bg-yellow-200 text-yellow-800 text-xs font-semibold px-2.5 py-0.5 rounded-full archived-badge">Archived</span>');
         }
-        if (boardData.permission_level !== 'owner' && boardData.board_id > 0) {
-            // Ensure the permission badge is placed correctly relative to other elements
+        // Only show permission badge if it's a valid board and user is not owner
+        if (boardData.board_id > 0 && boardData.permission_level && boardData.permission_level !== 'owner') {
             const permissionText = boardData.permission_level.charAt(0).toUpperCase() + boardData.permission_level.slice(1);
             const $archivedBadge = $boardHeaderInfo.find('.archived-badge');
+            const permissionBadgeHtml = `<span class="permission-badge ml-2">${sanitizeHTML(permissionText)} access</span>`;
             if ($archivedBadge.length) {
-                $archivedBadge.after(`<span class="permission-badge ml-2">${sanitizeHTML(permissionText)} access</span>`);
+                $archivedBadge.after(permissionBadgeHtml);
             } else {
-                 $('#boardNameDisplay').after(`<span class="permission-badge ml-2">${sanitizeHTML(permissionText)} access</span>`);
+                 $('#boardNameDisplay').after(permissionBadgeHtml);
             }
         }
 
-        // 4. Handle main board container classes for readonly/archived state
+        // 4. Handle main board container classes
         $('#kanbanBoard').removeClass('readonly archived-board-overlay');
         if (parseInt(boardData.is_archived) === 1) {
             $('#kanbanBoard').addClass('archived-board-overlay');
@@ -507,13 +543,12 @@ $board_data_json = json_encode($board_data_for_js);
             $('#kanbanBoard').addClass('readonly');
         }
 
-        // 5. Handle #addColumnPlaceholder visibility and creation
+        // 5. Handle #addColumnPlaceholder
         let $addColumnPlaceholder = $('#addColumnPlaceholder');
         const canAddColumnsJS = (boardData.permission_level === 'owner' || boardData.permission_level === 'admin') && !parseInt(boardData.is_archived);
 
         if (canAddColumnsJS) {
             if (!$addColumnPlaceholder.length) {
-                // Create placeholder if it doesn't exist (e.g., permissions changed)
                 const addColumnHtml = `
                 <div class="add-placeholder flex-shrink-0 flex items-center justify-center w-64 md:w-80 h-20 md:h-24 cursor-pointer" id="addColumnPlaceholder">
                     <div class="text-gray-500 flex flex-col items-center">
@@ -521,58 +556,69 @@ $board_data_json = json_encode($board_data_for_js);
                         <span class="mt-1 md:mt-2 text-sm md:text-base">Add Column</span>
                     </div>
                 </div>`;
-                // Insert before the first column, or at the end of #kanbanBoard if no columns yet
                 if ($('#kanbanBoard .kanban-column').length) {
                     $('#kanbanBoard .kanban-column:first').before(addColumnHtml);
                 } else {
+                    // If #kanbanBoard is empty, and we can add columns, append it.
+                    // This handles the case where PHP didn't render it because $can_add_columns was false initially.
                     $('#kanbanBoard').append(addColumnHtml);
                 }
-                $addColumnPlaceholder = $('#addColumnPlaceholder'); // Re-select
+                $addColumnPlaceholder = $('#addColumnPlaceholder');
             }
             $addColumnPlaceholder.show();
-            $addColumnPlaceholder.off('click').on('click', addNewColumnPrompt); // Re-bind click
+            $addColumnPlaceholder.off('click').on('click', addNewColumnPrompt);
         } else {
             if ($addColumnPlaceholder.length) $addColumnPlaceholder.hide();
         }
 
-        // 6. Render columns from the updated boardData
-        boardData.columns.forEach(column => {
-            renderColumn(column.column_id, column.column_name, column.column_identifier);
-        });
+        // 6. Render columns
+        if (boardData.columns && Array.isArray(boardData.columns)) {
+            boardData.columns.forEach(column => {
+                renderColumn(column.column_id, column.column_name, column.column_identifier);
+            });
+        } else {
+            console.warn("KANBAN: boardData.columns is not an array or is missing. Columns not rendered.");
+        }
 
-        // 7. Render tasks into their respective columns from updated boardData
-        boardData.tasks.forEach(task => {
-            const columnDomId = `column-${task.column_identifier}`;
-            if ($(`#tasks-${columnDomId}`).length) { // Ensure column's task list exists
-                 createTaskCard(columnDomId, task);
-            } else {
-                console.warn(`Task list for column identifier ${task.column_identifier} not found for task ID ${task.task_id}. Task not rendered.`);
-            }
-        });
+        // 7. Render tasks
+        if (boardData.tasks && Array.isArray(boardData.tasks)) {
+            boardData.tasks.forEach(task => {
+                const columnDomId = `column-${task.column_identifier}`;
+                if ($(`#tasks-${columnDomId}`).length) {
+                     createTaskCard(columnDomId, task);
+                } else {
+                    // This can happen if a column was just deleted by another user and tasks for it are still in boardData
+                    // console.warn(`KANBAN: Task list for column identifier ${task.column_identifier} not found for task ID ${task.task_id}. Task not rendered.`);
+                }
+            });
+        } else {
+            console.warn("KANBAN: boardData.tasks is not an array or is missing. Tasks not rendered.");
+        }
 
-        // 8. Initialize or destroy sortable (drag and drop) based on current state
+        // 8. Initialize or destroy sortable
         if (!parseInt(boardData.is_archived) && boardData.permission_level !== 'read') {
             initSortable();
         } else {
-            if ($('.task-list').data('ui-sortable')) { // Check if sortable is initialized
+            if ($('.task-list').data('ui-sortable')) {
                 $('.task-list').sortable('destroy');
             }
         }
         
-        // 9. Update assignee dropdown in task modal with potentially new collaborators
+        // 9. Update assignee dropdown
         const $assigneeSelect = $('#taskAssignee');
         $assigneeSelect.empty().append('<option value="">Unassigned</option>'); 
-        if (boardData.collaborators && boardData.collaborators.length > 0) {
+        if (boardData.collaborators && Array.isArray(boardData.collaborators) && boardData.collaborators.length > 0) {
             boardData.collaborators.forEach(collab => {
                 $assigneeSelect.append(`<option value="${collab.user_id}">${sanitizeHTML(collab.username)}</option>`);
             });
+        } else {
+            console.warn("KANBAN: boardData.collaborators is missing, not an array, or empty. Assignee dropdown might be incomplete.");
         }
+        console.log("--- KANBAN: initializeBoard() FINISHED ---");
     }
     
     function renderColumn(columnDbId, columnName, columnIdentifier) {
         const columnDomId = `column-${columnIdentifier}`;
-        // if ($(`#${columnDomId}`).length > 0) return; // This check is removed because initializeBoard clears all columns first
-
         const canRenameColumn = (boardData.permission_level === 'owner' || boardData.permission_level === 'admin') && !parseInt(boardData.is_archived);
         const canDeleteColumn = boardData.permission_level === 'owner' && !parseInt(boardData.is_archived);
         const canAddTask = boardData.permission_level !== 'read' && !parseInt(boardData.is_archived);
@@ -603,11 +649,10 @@ $board_data_json = json_encode($board_data_for_js);
                     </div>
                 </div>` : ''}
             </div>`;
-        const $addColumnPlaceholderLocal = $('#addColumnPlaceholder'); // Use local var for clarity
+        const $addColumnPlaceholderLocal = $('#addColumnPlaceholder'); 
         if ($addColumnPlaceholderLocal.length) {
             $(columnHtml).insertBefore($addColumnPlaceholderLocal);
         } else {
-            // If #addColumnPlaceholder is not present (e.g. user cannot add columns), append to board
             $('#kanbanBoard').append(columnHtml);
         }
 
@@ -635,14 +680,15 @@ $board_data_json = json_encode($board_data_for_js);
         const el = $(`#${columnDomId} h4.editable`)[0];
         if(el) { el.focus(); const range = document.createRange(); range.selectNodeContents(el); const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(range); }
     }
+
     function addNewColumnPrompt() {
         const columnName = prompt("Enter new column name:");
         if (columnName && columnName.trim() !== "") { saveNewColumn(columnName.trim()); }
     }
+
     function saveNewColumn(columnName) {
         let columnIdentifier = columnName.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
         if (!columnIdentifier) { columnIdentifier = `column-${Date.now()}`; }
-        // Ensure unique identifier client-side before sending (server should also check)
         let tempIdentifier = columnIdentifier;
         let counter = 1;
         while (boardData.columns.some(col => col.column_identifier === tempIdentifier)) {
@@ -658,20 +704,24 @@ $board_data_json = json_encode($board_data_for_js);
             dataType: 'json',
             success: function(result) {
                 if (result.success) {
-                    // Server response should include the final data, including ID and actual identifier if server modified it
                     const newColData = { 
                         column_id: result.column_id, 
-                        column_name: columnName, // Or result.column_name if server can modify
-                        column_identifier: result.column_identifier || columnIdentifier, // Prefer server's identifier
-                        column_order: newOrder // Or result.column_order
+                        column_name: columnName, 
+                        column_identifier: result.column_identifier || columnIdentifier, 
+                        column_order: newOrder 
                     };
                     boardData.columns.push(newColData);
+                    // Sort columns by order before rendering, in case the new order isn't just at the end
+                    boardData.columns.sort((a, b) => a.column_order - b.column_order);
+                    // Re-render all columns to ensure correct order if middle-insertion happens (though unlikely with current logic)
+                    // For simplicity, just rendering the new one. If order becomes complex, re-render all.
                     renderColumn(newColData.column_id, newColData.column_name, newColData.column_identifier);
-                    if (!parseInt(boardData.is_archived)) initSortable(); // Re-init sortable for new column
+                    if (!parseInt(boardData.is_archived)) initSortable();
                 } else { alert('Error adding column: ' + result.message); }
             }, error: function(xhr) { alert('Failed to save column. ' + xhr.responseText); }
         });
     }
+
     function updateColumnName(columnDbId, newName, element) {
         const originalColumn = boardData.columns.find(c => c.column_id == columnDbId);
         $.ajax({
@@ -693,6 +743,7 @@ $board_data_json = json_encode($board_data_for_js);
             }
         });
     }
+
     function removeColumn(columnDomId) {
         if (!confirm('Are you sure you want to delete this column and ALL its tasks? This cannot be undone.')) return;
         const columnDbId = $(`#${columnDomId}`).data('column-db-id');
@@ -705,23 +756,18 @@ $board_data_json = json_encode($board_data_for_js);
                     $(`#${columnDomId}`).remove();
                     boardData.columns = boardData.columns.filter(col => col.column_id != columnDbId);
                     boardData.tasks = boardData.tasks.filter(task => task.column_id != columnDbId);
-                    // No need to re-init sortable here as a column is removed, existing sortables remain connected.
                 } else { alert('Error deleting column: ' + result.message); }
             }, error: function() { alert('Failed to delete column.'); }
         });
     }
 
     function initSortable() {
-        // Destroy existing sortable instances on task lists to prevent duplicates or issues
         if ($('.task-list').data('ui-sortable')) {
             $('.task-list').sortable('destroy');
         }
-        
-        // Only initialize if not read-only and not archived
         if (boardData.permission_level === 'read' || parseInt(boardData.is_archived) === 1) {
             return; 
         }
-
         $('.task-list').sortable({
             connectWith: '.task-list', 
             handle: '.task-drag-handle',
@@ -730,7 +776,7 @@ $board_data_json = json_encode($board_data_for_js);
             opacity: 0.8,
             start: function(event, ui) { 
                 ui.placeholder.height(ui.item.outerHeight()); 
-                ui.placeholder.width(ui.item.outerWidth()); // Also set width for better visual
+                ui.placeholder.width(ui.item.outerWidth()); 
             },
             stop: function(event, ui) { 
                 updateTaskPositions(); 
@@ -744,12 +790,11 @@ $board_data_json = json_encode($board_data_for_js);
             const columnDbId = $(this).data('column-db-id');
             $(this).find('.task-list .task-card').each(function(index) {
                 const taskId = $(this).data('task-id');
-                // Find the task in boardData to ensure we have the latest column_id if it was just moved
                 const taskInBoardData = boardData.tasks.find(t => t.task_id == taskId);
                 if (taskInBoardData) {
                      tasksToUpdate.push({ 
                         task_id: taskId, 
-                        column_id: columnDbId, // The column it's visually in now
+                        column_id: columnDbId, 
                         task_order: index 
                     });
                 }
@@ -763,36 +808,30 @@ $board_data_json = json_encode($board_data_for_js);
                 dataType: 'json',
                 success: function(result) {
                     if (result.success) {
-                        // Update local boardData.tasks with new column_id and task_order
                         tasksToUpdate.forEach(updatedTaskInfo => {
                             const taskInBoardData = boardData.tasks.find(t => t.task_id == updatedTaskInfo.task_id);
                             if (taskInBoardData) {
                                 taskInBoardData.column_id = updatedTaskInfo.column_id;
                                 taskInBoardData.task_order = updatedTaskInfo.task_order;
-                                // Also update column_identifier if it changed
                                 const newColumn = boardData.columns.find(c => c.column_id == updatedTaskInfo.column_id);
                                 if (newColumn) {
                                     taskInBoardData.column_identifier = newColumn.column_identifier;
                                 }
                             }
                         });
-                        // No need to re-render cards, jQuery UI handles the visual move.
-                        // Local boardData is now in sync.
                     } else { 
                         alert('Error updating task positions: ' + result.message); 
-                        // Potentially revert UI or re-fetch board if update fails critically
-                        fetchAndReinitializeBoard(); // Re-fetch to ensure consistency
+                        fetchAndReinitializeBoard(); 
                     }
                 }, error: function() { 
                     alert('Failed to update task positions.'); 
-                    fetchAndReinitializeBoard(); // Re-fetch to ensure consistency
+                    fetchAndReinitializeBoard(); 
                 }
             });
         }
     }
 
     function openTaskModal(columnDomId, taskIdToEdit = null) {
-        // Check archived status based on current boardData
         if (parseInt(boardData.is_archived) === 1 && !taskIdToEdit) {
              alert("This project is archived. New tasks cannot be added.");
              return;
@@ -808,14 +847,7 @@ $board_data_json = json_encode($board_data_for_js);
         $('input[name="priority"][value="medium"]').prop('checked', true); 
         $('#taskCompleted').prop('checked', false); 
 
-        const $assigneeSelect = $('#taskAssignee');
-        // Assignee select is now populated by initializeBoard, so it should be up-to-date
-        // $assigneeSelect.empty().append('<option value="">Unassigned</option>'); 
-        // if (boardData.collaborators && boardData.collaborators.length > 0) {
-        //     boardData.collaborators.forEach(collab => {
-        //         $assigneeSelect.append(`<option value="${collab.user_id}">${sanitizeHTML(collab.username)}</option>`);
-        //     });
-        // }
+        // Assignee select is populated by initializeBoard, so it should be up-to-date when modal opens
 
         if (taskIdToEdit) {
             const taskId = taskIdToEdit.replace('task-', '');
@@ -828,7 +860,7 @@ $board_data_json = json_encode($board_data_for_js);
                 $('#dueDate').val(taskData.due_date);
                 $(`input[name="priority"][value="${taskData.priority}"]`).prop('checked', true);
                 $('#taskCompleted').prop('checked', taskData.is_completed == 1);
-                $assigneeSelect.val(taskData.assigned_to_user_id || ''); 
+                $('#taskAssignee').val(taskData.assigned_to_user_id || ''); 
             } else { 
                 alert('Task data not found for editing.'); 
                 return; 
@@ -836,17 +868,24 @@ $board_data_json = json_encode($board_data_for_js);
         } else {
             $('#modalTitle').text('Create Task');
             $('#taskId').val('');
-            $assigneeSelect.val(''); 
+            $('#taskAssignee').val(''); 
         }
         
-        if (parseInt(boardData.is_archived) === 1 && taskIdToEdit) {
+        const canEditContent = boardData.permission_level !== 'read' && !parseInt(boardData.is_archived);
+
+        if (parseInt(boardData.is_archived) === 1 && taskIdToEdit) { // Viewing archived task
             $('#taskForm input, #taskForm textarea, #taskForm select, #taskForm button[type="submit"]').prop('disabled', true);
             $('#modalTitle').text('View Task Details (Archived)');
-        } else if (boardData.permission_level === 'read' && taskIdToEdit) { // View only for read permission
+        } else if (boardData.permission_level === 'read' && taskIdToEdit) { // Viewing read-only task
              $('#taskForm input, #taskForm textarea, #taskForm select, #taskForm button[type="submit"]').prop('disabled', true);
             $('#modalTitle').text('View Task Details (Read-only)');
+        } else if (!canEditContent && !taskIdToEdit) { // Trying to create task on archived/read-only board
+             $('#taskForm input, #taskForm textarea, #taskForm select, #taskForm button[type="submit"]').prop('disabled', true);
+             // This case should ideally be caught before opening modal, but as a safeguard:
+             alert(parseInt(boardData.is_archived) ? 'This project is archived. New tasks cannot be added.' : 'You have read-only access and cannot create tasks.');
+             return; // Don't show modal
         }
-        else {
+        else { // Creating new or editing on active/editable board
              $('#taskForm input, #taskForm textarea, #taskForm select, #taskForm button[type="submit"]').prop('disabled', false);
         }
 
@@ -887,32 +926,30 @@ $board_data_json = json_encode($board_data_for_js);
                         task_id: result.task_id, 
                         board_id: parseInt(taskDataPayload.board_id),
                         column_id: parseInt(taskDataPayload.column_id),
-                        column_identifier: $('#taskColumnIdentifier').val(), // This should be correct for the current column
+                        column_identifier: $('#taskColumnIdentifier').val(), 
                         task_name: taskDataPayload.task_name, 
                         task_description: taskDataPayload.task_description,
                         due_date: taskDataPayload.due_date, 
                         priority: taskDataPayload.priority,
-                        task_order: result.task_order, // Server provides the order
+                        task_order: result.task_order, 
                         is_completed: taskDataPayload.is_completed,
                         assigned_to_user_id: taskDataPayload.assigned_to_user_id ? parseInt(taskDataPayload.assigned_to_user_id) : null,
                         assigned_username: assigneeUsername
                     };
 
-                    if (taskId) { // Editing existing task
+                    if (taskId) { 
                         const index = boardData.tasks.findIndex(t => t.task_id == savedTask.task_id);
                         if (index > -1) {
                             boardData.tasks[index] = savedTask;
-                        } else { // Should not happen if editing, but as a fallback
+                        } else { 
                             boardData.tasks.push(savedTask); 
                         }
-                        updateTaskCard(savedTask); // Re-render the specific card
-                    } else { // Creating new task
+                        updateTaskCard(savedTask); 
+                    } else { 
                         boardData.tasks.push(savedTask);
-                        createTaskCard(`column-${savedTask.column_identifier}`, savedTask); // Add new card
+                        createTaskCard(`column-${savedTask.column_identifier}`, savedTask); 
                     }
                     closeModal();
-                    // Sortable should already be initialized if applicable, no need to re-init unless task order logic is complex
-                    // if (!parseInt(boardData.is_archived)) initSortable(); 
                 } else { alert('Error saving task: ' + result.message); }
             },
             error: function(xhr) { alert('Failed to save task. ' + xhr.responseText); }
@@ -937,10 +974,7 @@ $board_data_json = json_encode($board_data_for_js);
     function createTaskCard(columnDomId, task) {
         const { priorityClass, priorityLabel } = getPriorityStyling(task.priority);
         const dueDateFormatted = task.due_date ? new Date(task.due_date.replace(/-/g, '\/')).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '';
-        
-        // Use current boardData for permission checks
         const canEditDeleteTask = boardData.permission_level !== 'read' && !parseInt(boardData.is_archived);
-        
         const assigneeHtml = task.assigned_to_user_id && task.assigned_username ? getAssigneeAvatar(task.assigned_to_user_id, task.assigned_username) : '';
         const isCompletedClass = task.is_completed == 1 ? 'completed' : '';
 
@@ -985,16 +1019,14 @@ $board_data_json = json_encode($board_data_for_js);
         if ($existingCard.length) {
             $existingCard.remove(); 
         }
-        // Find the column identifier from the task's column_id using current boardData
         const columnForTask = boardData.columns.find(col => col.column_id == task.column_id);
         if (columnForTask) {
             createTaskCard(`column-${columnForTask.column_identifier}`, task); 
         } else {
-            console.error("Column not found for updated task, cannot re-render card:", task);
-            // Fallback: if a task's column was deleted, it might not render.
-            // Or, if task was moved to a new column that isn't rendered yet (should be handled by initializeBoard).
+            console.error("KANBAN: Column not found for updated task, cannot re-render card:", task);
         }
     }
+
     function deleteTask(taskId) {
         if (parseInt(boardData.is_archived) === 1) {
             alert("This project is archived. Tasks cannot be deleted.");
@@ -1013,6 +1045,7 @@ $board_data_json = json_encode($board_data_for_js);
             }, error: function() { alert('Failed to delete task.'); }
         });
     }
+
     function getPriorityStyling(priorityValue) {
         let priorityClass = 'border-gray-300'; 
         let priorityLabel = `<span class="text-xs font-medium mr-2 text-gray-600">N/A</span>`;
@@ -1032,5 +1065,4 @@ $board_data_json = json_encode($board_data_for_js);
         }
         return { priorityClass, priorityLabel };
     }
-
 </script>
