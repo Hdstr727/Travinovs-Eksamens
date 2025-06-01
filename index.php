@@ -6,7 +6,6 @@
     <title>Planner+ - Streamline Your Workflow & Boost Productivity</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw==" crossorigin="anonymous" referrerpolicy="no-referrer" />
     <link href="https://unpkg.com/tailwindcss@^2.0/dist/tailwind.min.css" rel="stylesheet">
-    <!-- Link to the NEW public page dark theme CSS -->
     <link rel="stylesheet" href="public-dark-theme.css">
     <style>
         html { scroll-behavior: smooth; }
@@ -27,7 +26,6 @@
             font-size: 2.25rem; /* text-4xl */
             font-weight: 700; /* bold */
             margin-bottom: 1.5rem; /* mb-6 */
-            /* color: #e63946; /* text-brand - will be handled by Tailwind class */
         }
         .section-subtitle {
             font-size: 1.25rem; /* text-xl */
@@ -106,7 +104,6 @@
             </div>
             <div class="grid md:grid-cols-2 gap-12 items-center">
                 <div>
-                    <!-- Replace with a relevant image or illustration for your project -->
                     <img src="https://images.unsplash.com/photo-1517048676732-d65bc937f952?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80" alt="Team Collaboration Visual" class="rounded-lg shadow-xl object-cover h-full w-full">
                 </div>
                 <div class="space-y-6">
@@ -155,8 +152,8 @@
                 </div>
                 <div class="feature-card bg-white p-8 rounded-xl shadow-lg">
                     <div class="text-brand text-4xl mb-5"><i class="fas fa-calendar-alt"></i></div>
-                    <h3 class="text-2xl font-semibold text-gray-800 mb-3">Project Calendars</h3>
-                    <p class="text-gray-600">Schedule tasks, set deadlines, and view your project timeline at a glance.</p>
+                    <h3 class="text-2xl font-semibold text-gray-800 mb-3">Integrated Calendar View</h3>
+                    <p class="text-gray-600">See all your tasks with due dates in a clear calendar format, helping you manage deadlines effectively across projects.</p>
                 </div>
                 <div class="feature-card bg-white p-8 rounded-xl shadow-lg">
                     <div class="text-brand text-4xl mb-5"><i class="fas fa-comments"></i></div>
@@ -165,18 +162,18 @@
                 </div>
                 <div class="feature-card bg-white p-8 rounded-xl shadow-lg">
                     <div class="text-brand text-4xl mb-5"><i class="fas fa-bell"></i></div>
-                    <h3 class="text-2xl font-semibold text-gray-800 mb-3">Smart Notifications</h3>
-                    <p class="text-gray-600">Stay updated on important changes and mentions without the noise.</p>
+                    <h3 class="text-2xl font-semibold text-gray-800 mb-3">Customizable Notifications</h3>
+                    <p class="text-gray-600">Stay informed without the clutter. Choose exactly which project activities you want to be notified about.</p>
                 </div>
                 <div class="feature-card bg-white p-8 rounded-xl shadow-lg">
-                    <div class="text-brand text-4xl mb-5"><i class="fas fa-file-alt"></i></div>
-                    <h3 class="text-2xl font-semibold text-gray-800 mb-3">File Sharing</h3>
-                    <p class="text-gray-600">Attach files and documents directly to tasks and projects.</p>
+                    <div class="text-brand text-4xl mb-5"><i class="fas fa-sliders-h"></i></div>
+                    <h3 class="text-2xl font-semibold text-gray-800 mb-3">Project Customization</h3>
+                    <p class="text-gray-600">Adapt your projects to your needs. Configure board settings, manage collaborators, and tailor your workspace.</p>
                 </div>
                 <div class="feature-card bg-white p-8 rounded-xl shadow-lg">
                     <div class="text-brand text-4xl mb-5"><i class="fas fa-user-shield"></i></div>
-                    <h3 class="text-2xl font-semibold text-gray-800 mb-3">Role-Based Permissions</h3>
-                    <p class="text-gray-600">Control who sees what with granular access levels for team members.</p>
+                    <h3 class="text-2xl font-semibold text-gray-800 mb-3">Permissions</h3>
+                    <p class="text-gray-600">Control access and collaboration with different permission levels for team members on your projects.</p>
                 </div>
             </div>
         </div>
@@ -271,7 +268,7 @@
                         <i class="fas fa-chevron-down text-gray-500 transform transition-transform"></i>
                     </button>
                     <div class="mt-3 text-gray-600 max-h-0 overflow-hidden transition-all duration-500 ease-in-out">
-                        We prioritize your data security. All data is encrypted, and we follow industry best practices to protect your information.
+                        We take your data security seriously. Your passwords are encrypted, and we employ robust security measures to protect your information and project data.
                     </div>
                 </div>
             </div>
@@ -285,7 +282,6 @@
             <p class="text-xl text-red-100 mb-10 max-w-2xl mx-auto">Join Planner+ today and take control of your tasks and projects. It's free and easy to get started!</p>
             <div class="flex flex-col sm:flex-row justify-center items-center gap-6">
                 <a href="authenticated-view/core/register.php" class="bg-white text-brand py-3 px-8 rounded-lg text-lg font-semibold hover:bg-red-100 transition-transform transform hover:scale-105 shadow-md hover:shadow-lg w-full sm:w-auto">Sign Up - It's Free!</a>
-                <a href="mailto:support@plannerplus.example.com" class="border-2 border-white text-white py-3 px-8 rounded-lg text-lg font-semibold hover:bg-white hover:text-brand transition-colors w-full sm:w-auto">Contact Us</a>
             </div>
         </div>
     </section>
@@ -308,15 +304,8 @@
                     </ul>
                 </div>
                 <div>
-                    <h4 class="text-lg font-semibold text-white mb-4">Connect With Us</h4>
-                    <ul class="space-y-2 mb-4">
-                        <li><a href="mailto:support@plannerplus.example.com" class="hover:text-brand transition-colors">support@plannerplus.example.com</a></li>
-                    </ul>
-                    <div class="flex space-x-4 justify-start md:justify-center">
-                        <a href="#" class="text-xl hover:text-brand transition-colors"><i class="fab fa-facebook-f"></i></a>
-                        <a href="#" class="text-xl hover:text-brand transition-colors"><i class="fab fa-twitter"></i></a>
-                        <a href="#" class="text-xl hover:text-brand transition-colors"><i class="fab fa-linkedin-in"></i></a>
-                    </div>
+                    <h4 class="text-lg font-semibold text-white mb-4">Enjoy Planner+</h4>
+                    <p class="text-gray-400">We hope Planner+ helps you organize your work and achieve your goals efficiently. Happy planning!</p>
                 </div>
             </div>
             <hr class="border-gray-700 my-8">
@@ -390,12 +379,10 @@ document.addEventListener('DOMContentLoaded', function () {
             const content = button.nextElementSibling;
             const icon = button.querySelector('i');
 
-            // Toggle current item
             if (content.style.maxHeight && content.style.maxHeight !== "0px") {
                 content.style.maxHeight = "0px";
                 icon.classList.remove('rotate-180');
             } else {
-                // Close all other items before opening the current one
                 faqItems.forEach(otherButton => {
                     if (otherButton !== button) {
                         otherButton.nextElementSibling.style.maxHeight = "0px";
