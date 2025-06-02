@@ -1,23 +1,44 @@
 # Planner+ Projekts
 
-**Planner+** ir tīmekļa lietotne projektu pārvaldībai un laika uzskaitei, kas izstrādāta, izmantojot HTML, Tailwind CSS, PHP, MySQL un jQuery. Lietotne ļauj lietotājiem pieteikties, pārvaldīt uzdevumus un sekot līdzi produktivitātei.
+## Par projektu
 
-## Funkcijas
+**Planner+** ir moderna tīmekļa lietotne projektu pārvaldībai, kas izstrādāta kā eksāmena darbs. Sistēma nodrošina efektīvu projektu plānošanu, uzdevumu organizēšanu, izmantojot mūsdienīgas tīmekļa tehnoloģijas.
 
-- Lietotāja pieteikšanās sistēma ar drošu parolju apstrādi.
-- Uzdevumu pārvaldība ar iespējām pievienot, rediģēt un dzēst uzdevumus.
-- Lietotāja panelis, lai skatītu un pārvaldītu uzdevumus.
-- Dizains, izmantojot Tailwind CSS ietvaru.
+### Tehnoloģiju steks
 
-## Prasības
+- **Frontend**: HTML5, Tailwind CSS, JavaScript (jQuery)
+- **Backend**: PHP
+- **Datubāze**: MySQL
+- **Drošība**: Šifrētas paroles, aizsardzība pret SQL injekcijam
 
-- PHP 7.4 vai augstāka versija
-- MySQL vai MariaDB datu bāze
-- Tīmekļa serveris (piemēram, Apache vai Nginx)
+## Galvenās funkcijas
 
-## Instalēšana
+### Lietotāju pārvaldība
+- Reģistrācija un autentifikācija ar drošu paroļu šifrēšanu
+- Lietotāju profilu pārvaldība ar personalizācijas iespējām
+- Dažādi lietotāju līmeņi (administrators, redaktors, skatitājs)
 
-1. **Klone šo repozitoriju:**
+### Projektu pārvaldība
+- Projektu izveide, rediģēšana un arhivēšana
+- Projektu kategoriju un apraksta pievienošana
+- Projektu progresa vizualizācija kalendara skatā
 
-   ```bash
-   git clone https://github.com/Hdstr727/Travinovs-Eksamens.git
+### Uzdevumu organizēšana
+- Kanban dēļa interfeiss ar pielāgojamām kolonnām
+- Uzdevumu izveide, rediģēšana un dzēšana
+- Uzdevumu piešķiršana lietotājiem
+- Termiņu un prioritāšu iestatīšana
+
+### Sadarbības rīki
+- Reāllaika paziņojumi par izmaiņām
+- Projektu koplietošana ar citiem lietotājiem
+
+## Demonstrācija
+
+Projekta demonstrācijas versija ir pieejama: [https://kristovskis.lv/3pt1/travinovs/Travinovs-Eksamens/](https://kristovskis.lv/3pt1/travinovs/Travinovs-Eksamens/)
+
+
+## Autors
+
+Aleksandrs Travinovs
+
