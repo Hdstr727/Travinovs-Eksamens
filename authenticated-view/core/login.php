@@ -58,7 +58,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Planotajs</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="../css/dark-theme.css"> <!-- Adjust path if needed -->
+    <link rel="stylesheet" href="../css/dark-theme.css">
+    <link rel="icon" type="image/x-icon" href="../../assets/favicon.ico">
 </head>
 <body class="flex items-center justify-center min-h-screen bg-gray-100">
     <div class="w-full max-w-md p-8 bg-white rounded-lg shadow-md text-center">

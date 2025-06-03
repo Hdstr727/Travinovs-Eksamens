@@ -84,6 +84,7 @@ if (isset($connection)) {
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="css/dark-theme.css">
+    <link rel="icon" type="image/x-icon" href="../assets/favicon.ico">
     <style>
         .badge { font-size: 0.65rem; padding: 0.15rem 0.5rem; border-radius: 9999px; }
         .notification-item > a, .notification-item > div[data-id] { cursor: pointer; }

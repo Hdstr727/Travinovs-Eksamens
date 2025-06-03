@@ -277,7 +277,8 @@ if (!empty($board_ids_user_can_view_activity_for)) {
     <title>Dashboard - Planotajs</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link rel="stylesheet" href="css/dark-theme.css"> 
+    <link rel="stylesheet" href="css/dark-theme.css">
+    <link rel="icon" type="image/x-icon" href="../assets/favicon.ico">
     <style>
         .hover-scale { transition: transform 0.2s ease; }
         .hover-scale:hover { transform: scale(1.03); }

@@ -221,7 +221,8 @@ $title = "Edit Profile - Planotajs";
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?= htmlspecialchars($title) ?></title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="../css/dark-theme.css"> <!-- Adjust path -->
+    <link rel="stylesheet" href="../css/dark-theme.css"> 
+    <link rel="icon" type="image/x-icon" href="../../assets/favicon.ico">
 </head>
 <body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col">
    
