@@ -1,14 +1,14 @@
 <?php
-    $serveris = "localhost";
-    $lietotajs = "root";
-    $parole = "yourpassword";
-    $db = "planotajs";
+    $server = "";
+    $user = "";
+    $password = "";
+    $database = "";
 
-    $savienojums = mysqli_connect($serveris, $lietotajs, $parole, $db);
+    $connection = mysqli_connect($server, $user, $password, $database);
 
-    if(!$savienojums){
-        
-    }else{
-    
+    if(!$connection){
+        // Handle connection error here
+    } else {
+        // Connection is successful
     }
 ?>
