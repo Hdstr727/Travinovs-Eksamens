@@ -212,7 +212,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     }
 }
 
-$title = "Edit Profile - Planotajs";
+$title = "Edit Profile - Planner+";
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -227,7 +227,7 @@ $title = "Edit Profile - Planotajs";
 <body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col">
    
     <header class="bg-white shadow-md p-4 flex justify-between items-center">
-        <h1 class="text-xl font-bold text-[#e63946]">Planotajs</h1>
+        <h1 class="text-xl font-bold text-[#e63946]">Planner+</h1>
         <nav>
             <a href="../index.php" class="text-gray-700 hover:text-[#e63946] ml-40">Back to Dashboard</a>
         </nav>
@@ -318,7 +318,7 @@ $title = "Edit Profile - Planotajs";
         </div>
     </main>
 
-    <footer class="bg-gray-200 text-center p-4 text-gray-600">© <?= date("Y") ?> Planotajs. All rights reserved.</footer>
+    <footer class="bg-gray-200 text-center p-4 text-gray-600">© <?= date("Y") ?> Planner+. All rights reserved.</footer>
     
     <script>
     // Script for image preview and dark mode toggle (remains the same as your original profile.php)

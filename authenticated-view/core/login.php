@@ -56,14 +56,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - Planotajs</title>
+    <title>Login - Planner+</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="../css/dark-theme.css">
     <link rel="icon" type="image/x-icon" href="../../assets/favicon.ico">
 </head>
 <body class="flex items-center justify-center min-h-screen bg-gray-100">
     <div class="w-full max-w-md p-8 bg-white rounded-lg shadow-md text-center">
-        <h2 class="text-2xl font-bold text-[#e63946] mb-4">Login to Planotajs</h2>
+        <h2 class="text-2xl font-bold text-[#e63946] mb-4">Login to Planner+</h2>
         
         <?php if ($error): ?>
             <p class="text-sm font-semibold text-red-600 mb-4"><?php echo $error; ?></p>
