@@ -260,7 +260,7 @@
                         <i class="fas fa-chevron-down text-gray-500 transform transition-transform"></i>
                     </button>
                     <div class="mt-3 text-gray-600 max-h-0 overflow-hidden transition-all duration-500 ease-in-out">
-                        Absolutely! Planner+ is designed for teamwork. You can invite team members to your boards, assign tasks, share files, and communicate in real-time.
+                        Absolutely! Planner+ is designed for teamwork. You can invite team members to your boards, assign tasks and communicate in real-time.
                     </div>
                 </div>
                  <div class="faq-item bg-gray-50 p-6 rounded-lg shadow-md">
