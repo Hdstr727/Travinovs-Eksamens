@@ -4,6 +4,8 @@
 
 **Planner+** ir moderna tīmekļa lietotne projektu pārvaldībai, kas izstrādāta kā eksāmena darbs. Sistēma nodrošina efektīvu projektu plānošanu, uzdevumu organizēšanu, izmantojot mūsdienīgas tīmekļa tehnoloģijas.
 
+[📄 Lejupielādēt Planner+ dokumentāciju](docs/Planner%2B%20dokument%C4%81cija.docx)
+
 ### Tehnoloģiju steks
 
 - **Frontend**: HTML5, Tailwind CSS, JavaScript (jQuery)
