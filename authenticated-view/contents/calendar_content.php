@@ -123,8 +123,8 @@ $nav_today_params = http_build_query($nav_today_params_array);
 
 
 // --- SQL Query to fetch tasks (common for all views) ---
-// This query is now secure and only fetches tasks from boards the user can access.
-// It also filters out tasks from deleted or archived boards by default.
+// This query is now secure and only fetches tasks from boards the user can access,
+// AND only tasks that are assigned to them or are unassigned.
 $sql = "SELECT t.*, b.board_name 
         FROM Planner_Tasks t 
         JOIN Planner_Boards b ON t.board_id = b.board_id 
@@ -132,6 +132,7 @@ $sql = "SELECT t.*, b.board_name
           AND t.is_deleted = 0 
           AND b.is_deleted = 0
           AND b.is_archived = 0
+          AND (t.assigned_to_user_id = ? OR t.assigned_to_user_id IS NULL)
           AND t.board_id IN (
               -- Boards the user owns
               SELECT board_id FROM Planner_Boards WHERE user_id = ?
@@ -140,8 +141,8 @@ $sql = "SELECT t.*, b.board_name
               SELECT board_id FROM Planner_Collaborators WHERE user_id = ?
           )";
 $stmt = $connection->prepare($sql);
-// Bind the two new user_id parameters for the subquery
-$stmt->bind_param("ssii", $start_date_sql, $end_date_sql, $user_id, $user_id);
+// Bind the THREE user_id parameters for the subquery (one for assignment, two for board access)
+$stmt->bind_param("ssiii", $start_date_sql, $end_date_sql, $user_id, $user_id, $user_id);
 $stmt->execute();
 $result = $stmt->get_result();
 
