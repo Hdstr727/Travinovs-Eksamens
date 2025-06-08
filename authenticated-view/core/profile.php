@@ -227,17 +227,20 @@ $title = "Edit Profile - Planner+";
 <body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col">
    
     <header class="bg-white shadow-md p-4 flex justify-between items-center">
-        <a href="../index.php" class="text-xl font-bold text-[#e63946]">Planner+</a>
+        <a href="../index.php" class="text-xl font-bold text-[#e63946] shrink-0">Planner+</a>
         
+        <div class="hidden md:block">
+            <a href="../index.php" class="text-gray-700 hover:text-[#e63946] ml-44 transition-colors">
+                Back to Dashboard
+            </a>
+        </div>
+
         <div class="flex items-center gap-2 sm:gap-4">
             
-            <a href="../index.php" class="text-gray-700 hover:text-[#e63946] p-2 rounded-full hover:bg-gray-100 transition-colors" title="Back to Dashboard">
-                
-                <svg class="h-5 w-5 sm:hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+            <a href="../index.php" class="text-gray-700 hover:text-[#e63946] p-2 rounded-full hover:bg-gray-100 transition-colors md:hidden" title="Back to Dashboard">
+                <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
                 </svg>
-                
-                <span class="hidden sm:inline">Back to Dashboard</span>
             </a>
 
             <button id="dark-mode-toggle-profile" title="Toggle dark mode" class="bg-gray-200 p-2 rounded-full hover:bg-gray-300 transition">🌙</button>
