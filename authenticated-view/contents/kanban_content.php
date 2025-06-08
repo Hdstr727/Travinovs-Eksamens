@@ -287,70 +287,76 @@ $board_data_json = json_encode($board_data_for_js);
 </div>
 
       
-<!-- Task Modal (Closer to Original Structure with New Fields) -->
+<!-- Task Modal -->
 <div id="taskModal" class="fixed inset-0 bg-gray-500 bg-opacity-50 flex justify-center items-center hidden z-50 p-4 overflow-y-auto">
-    <div class="bg-white p-8 rounded-lg shadow-lg w-full max-w-xl">
-        <h3 class="text-2xl font-semibold text-[#e63946] mb-6" id="modalTitle">Create Task</h3>
-        <form id="taskForm">
-            <input type="hidden" id="taskBoardId" value="<?= $board_id ?>">
-            <input type="hidden" id="taskColumnDbId" value="">
-            <input type="hidden" id="taskColumnIdentifier" value="">
-            <input type="hidden" id="taskId" value="">
+    <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+        <h3 class="text-xl font-semibold text-[#e63946] mb-4" id="modalTitle">Create Task</h3> 
 
-            <div class="mb-6">
-                <label for="taskTitle" class="block text-lg font-medium text-gray-700">Task Title</label>
-                <input type="text" id="taskTitle" class="w-full p-3 mt-2 border border-gray-300 rounded-lg" placeholder="Enter task title" required>
-            </div>
-            <div class="mb-6">
-                <label for="taskDescription" class="block text-lg font-medium text-gray-700">Task Description</label>
-                <textarea id="taskDescription" class="w-full p-3 mt-2 border border-gray-300 rounded-lg" rows="6" placeholder="Enter task description"></textarea>
-            </div>
-            <div class="mb-6">
-                <label for="dueDate" class="block text-lg font-medium text-gray-700">Due Date</label>
-                <input type="date" id="dueDate" class="w-full p-3 mt-2 border border-gray-300 rounded-lg">
-            </div>
+      
+<form id="taskForm" class="space-y-4"> 
+        <input type="hidden" id="taskBoardId" value="<?= $board_id ?>">
+        <input type="hidden" id="taskColumnDbId" value="">
+        <input type="hidden" id="taskColumnIdentifier" value="">
+        <input type="hidden" id="taskId" value="">
 
-            <!-- Assign To - New Field -->
-            <div class="mb-6">
-                <label for="taskAssignee" class="block text-lg font-medium text-gray-700">Assign To</label>
-                <select id="taskAssignee" class="w-full p-3 mt-2 border border-gray-300 rounded-lg bg-white">
+        <div>
+            <label for="taskTitle" class="block text-sm font-medium text-gray-700">Task Title</label> 
+            <input type="text" id="taskTitle" class="w-full p-2 mt-1 border border-gray-300 rounded-lg" placeholder="Enter task title" required> 
+        </div>
+
+        <div>
+            <label for="taskDescription" class="block text-sm font-medium text-gray-700">Task Description</label>
+            <textarea id="taskDescription" class="w-full p-2 mt-1 border border-gray-300 rounded-lg" rows="3" placeholder="Enter task description"></textarea> 
+        </div>
+        
+        
+        <div>
+            <div>
+                <label for="dueDate" class="block text-sm font-medium text-gray-700">Due Date</label>
+                <input type="date" id="dueDate" class="w-full p-2 mt-1 border border-gray-300 rounded-lg">
+            </div>
+            <div>
+                <label for="taskAssignee" class="block text-sm font-medium text-gray-700">Assign To</label>
+                <select id="taskAssignee" class="w-full p-2 mt-1 border border-gray-300 rounded-lg bg-white">
                     <option value="">Unassigned</option>
                     <?php foreach ($board_collaborators_for_assignment as $collaborator): ?>
                         <option value="<?= $collaborator['user_id'] ?>"><?= $collaborator['username'] ?></option>
                     <?php endforeach; ?>
                 </select>
             </div>
+        </div>
 
-            <div class="mb-6">
-                <label class="block text-lg font-medium text-gray-700">Priority</label>
-                <div class="flex space-x-4 mt-2"> 
-                    <label class="flex items-center">
-                        <input type="radio" name="priority" value="low" class="mr-2 h-4 w-4 text-green-600 border-gray-300 focus:ring-green-500">
-                        <span class="text-green-700">Low</span>
-                    </label>
-                    <label class="flex items-center">
-                        <input type="radio" name="priority" value="medium" class="mr-2 h-4 w-4 text-yellow-600 border-gray-300 focus:ring-yellow-500" checked>
-                        <span class="text-yellow-700">Medium</span>
-                    </label>
-                    <label class="flex items-center">
-                        <input type="radio" name="priority" value="high" class="mr-2 h-4 w-4 text-red-600 border-gray-300 focus:ring-red-500">
-                        <span class="text-red-700">High</span>
-                    </label>
-                </div>
+        <div>
+            <label class="block text-sm font-medium text-gray-700">Priority</label>
+            <div class="flex flex-wrap gap-x-3 gap-y-1 mt-1"> 
+                <label class="flex items-center">
+                    <input type="radio" name="priority" value="low" class="mr-1 h-4 w-4 text-green-600 border-gray-300 focus:ring-green-500">
+                    <span class="text-sm text-green-700">Low</span> 
+                </label>
+                <label class="flex items-center">
+                    <input type="radio" name="priority" value="medium" class="mr-1 h-4 w-4 text-yellow-600 border-gray-300 focus:ring-yellow-500" checked>
+                    <span class="text-sm text-yellow-700">Medium</span>
+                </label>
+                <label class="flex items-center">
+                    <input type="radio" name="priority" value="high" class="mr-1 h-4 w-4 text-red-600 border-gray-300 focus:ring-red-500">
+                    <span class="text-sm text-red-700">High</span>
+                </label>
             </div>
+        </div>
 
-            <!-- Mark as Completed - New Field -->
-            <div class="mb-6 flex items-center">
-                <input type="checkbox" id="taskCompleted" name="taskCompleted" class="h-5 w-5 text-green-600 border-gray-300 rounded focus:ring-green-500">
-                <label for="taskCompleted" class="ml-2 block text-lg font-medium text-gray-700">Mark as Completed</label>
+        <div class="pt-1"> 
+            <div class="flex items-center">
+                <input type="checkbox" id="taskCompleted" name="taskCompleted" class="h-4 w-4 text-green-600 border-gray-300 rounded focus:ring-green-500">
+                <label for="taskCompleted" class="ml-2 block text-sm font-medium text-gray-700">Mark as Completed</label>
             </div>
+        </div>
 
-            <div class="flex justify-between mt-8"> 
-                <button type="button" onclick="closeModal()" class="bg-gray-300 text-gray-700 py-3 px-6 rounded-lg text-lg hover:bg-gray-400 transition-colors">Cancel</button>
-                <button type="submit" class="bg-[#e63946] text-white py-3 px-6 rounded-lg text-lg hover:bg-red-700 transition-colors">Save Task</button>
-            </div>
-        </form>
-    </div>
+        <div class="flex justify-between pt-2"> 
+            <button type="button" onclick="closeModal()" class="bg-gray-300 text-gray-700 py-2 px-4 rounded-lg text-sm hover:bg-gray-400 transition-colors">Cancel</button> 
+            <button type="submit" class="bg-[#e63946] text-white py-2 px-4 rounded-lg text-sm hover:bg-red-700 transition-colors">Save Task</button>
+        </div>
+    </form>
+</div>
 </div>
 
     

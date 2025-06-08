@@ -93,16 +93,21 @@ if (isset($connection)) {
 </head>
 <body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col">
    
-    <header class="bg-white shadow-md p-4 flex justify-between items-center">
-        <a href="index.php" class="text-xl font-bold text-[#e63946]">Planner+</a>
-        <nav class="flex gap-4">
+    <header class="bg-white shadow-md p-4 flex justify-between items-center relative z-20">
+        <!-- Logo -->
+        <a href="index.php" class="text-xl font-bold text-[#e63946] shrink-0">Planner+</a>
+
+        <!-- Desktop Navigation (hidden on screens smaller than lg) -->
+        <nav class="hidden lg:flex mx-auto gap-4">
             <a href="index.php" class="text-gray-700 hover:text-[#e63946]">Dashboard</a>
             <a href="<?= htmlspecialchars($kanban_url) ?>" class="text-gray-700 hover:text-[#e63946]">Kanban</a>
             <a href="calendar.php" class="text-gray-700 hover:text-[#e63946]">Calendar</a>
             <a href="project_settings.php" class="text-gray-700 hover:text-[#e63946]">Settings</a>
             <a href="<?= htmlspecialchars($chat_url) ?>" class="text-gray-700 hover:text-[#e63946]">Chat</a>
         </nav>
-        <div class="flex items-center space-x-4">
+
+        <!-- Right Side Controls & Mobile Toggle -->
+        <div class="flex items-center space-x-2 sm:space-x-4">
             <div class="relative">
                 <button id="notifications-toggle" title="Notifications" class="relative bg-gray-200 p-2 rounded-full hover:bg-gray-300 transition">
                     🔔
@@ -114,7 +119,7 @@ if (isset($connection)) {
                         <span id="notification-count-badge" class="absolute top-0 right-0 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center" style="display: none;"></span>
                     <?php endif; ?>
                 </button>
-                <div id="notifications-dropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-md p-4 z-50 max-h-96 overflow-y-auto">
+                <div id="notifications-dropdown" class="hidden fixed top-16 left-4 right-4 rounded-lg bg-white shadow-md p-4 z-50 max-h-[80vh] overflow-y-auto sm:absolute sm:w-80 sm:top-full sm:left-auto sm:right-0 sm:mt-2 sm:max-h-96">
                     <div class="flex justify-between items-center mb-2">
                         <h3 class="text-lg font-semibold">Notifications</h3>
                         <a href="#" id="mark-all-read" class="text-sm text-[#e63946] hover:underline">Mark all as read</a>
@@ -131,12 +136,33 @@ if (isset($connection)) {
 
             <a href="core/profile.php" class="relative group" title="Edit Profile">
                 <img src="<?= htmlspecialchars($user_avatar) ?>" class="w-10 h-10 rounded-full border group-hover:opacity-90 transition-opacity" alt="Avatar">
-                <div class="absolute opacity-0 group-hover:opacity-100 transition-opacity text-xs bg-black text-white px-2 py-1 rounded -bottom-8 left-1/2 transform -translate-x-1/2 whitespace-nowrap">
-                    Rediģēt profilu
-                </div>
             </a>
-            <span class="font-semibold"><?= htmlspecialchars($username) ?></span>
-            <a href="core/logout.php" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-700">Logout</a>
+            
+            <span class="font-semibold hidden sm:inline"><?= htmlspecialchars($username) ?></span>
+            
+            <a href="core/logout.php" class="bg-red-500 text-white px-3 py-2 rounded-lg hover:bg-red-700 hidden sm:block">Logout</a>
+
+            <!-- Hamburger Button (visible on screens smaller than lg) -->
+            <button id="mobile-menu-button" class="lg:hidden p-2 rounded-md text-gray-700 hover:bg-gray-200 focus:outline-none">
+                <span class="sr-only">Open main menu</span>
+                <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                </svg>
+            </button>
+        </div>
+
+        <!-- Mobile Menu (hidden by default) -->
+        <div id="mobile-menu" class="hidden lg:hidden absolute top-full right-0 mt-1 w-full max-w-xs bg-white rounded-b-lg shadow-lg z-10">
+            <nav class="flex flex-col p-4 space-y-2">
+                <a href="index.php" class="text-gray-700 hover:text-[#e63946] hover:bg-gray-100 p-2 rounded-md">Dashboard</a>
+                <a href="<?= htmlspecialchars($kanban_url) ?>" class="text-gray-700 hover:text-[#e63946] hover:bg-gray-100 p-2 rounded-md">Kanban</a>
+                <a href="calendar.php" class="text-gray-700 hover:text-[#e63946] hover:bg-gray-100 p-2 rounded-md">Calendar</a>
+                <a href="project_settings.php" class="text-gray-700 hover:text-[#e63946] hover:bg-gray-100 p-2 rounded-md">Settings</a>
+                <a href="<?= htmlspecialchars($chat_url) ?>" class="text-gray-700 hover:text-[#e63946] hover:bg-gray-100 p-2 rounded-md">Chat</a>
+                <div class="border-t border-gray-200 pt-2 mt-2 sm:hidden">
+                     <a href="core/logout.php" class="block w-full text-left bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-700">Logout</a>
+                </div>
+            </nav>
         </div>
     </header>
 
@@ -173,6 +199,26 @@ if (isset($connection)) {
                 if(darkModeToggleLayout) darkModeToggleLayout.textContent = '🌙';
             }
         }
+
+        const mobileMenuButton = document.getElementById('mobile-menu-button');
+        const mobileMenu = document.getElementById('mobile-menu');
+
+        if (mobileMenuButton && mobileMenu) {
+            mobileMenuButton.addEventListener('click', (e) => {
+                e.stopPropagation(); // Prevent the document click listener from firing immediately
+                mobileMenu.classList.toggle('hidden');
+            });
+        }
+
+        // Add a click listener to the document to close the menu when clicking outside
+        document.addEventListener('click', (e) => {
+            // Check if the menu is open and the click was not on the menu or the button
+            if (mobileMenu && !mobileMenu.classList.contains('hidden')) {
+                if (!mobileMenu.contains(e.target) && !mobileMenuButton.contains(e.target)) {
+                    mobileMenu.classList.add('hidden');
+                }
+            }
+        });
 
         let initialDarkMode = localStorage.getItem('darkMode');
         if (initialDarkMode === 'true') {

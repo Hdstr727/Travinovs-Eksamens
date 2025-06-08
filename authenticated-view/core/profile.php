@@ -227,22 +227,33 @@ $title = "Edit Profile - Planner+";
 <body class="bg-gray-100 text-gray-800 min-h-screen flex flex-col">
    
     <header class="bg-white shadow-md p-4 flex justify-between items-center">
-        <h1 class="text-xl font-bold text-[#e63946]">Planner+</h1>
-        <nav>
-            <a href="../index.php" class="text-gray-700 hover:text-[#e63946] ml-40">Back to Dashboard</a>
-        </nav>
-        <div class="flex items-center gap-4">
+        <a href="../index.php" class="text-xl font-bold text-[#e63946]">Planner+</a>
+        
+        <div class="flex items-center gap-2 sm:gap-4">
+            
+            <a href="../index.php" class="text-gray-700 hover:text-[#e63946] p-2 rounded-full hover:bg-gray-100 transition-colors" title="Back to Dashboard">
+                
+                <svg class="h-5 w-5 sm:hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+                </svg>
+                
+                <span class="hidden sm:inline">Back to Dashboard</span>
+            </a>
+
             <button id="dark-mode-toggle-profile" title="Toggle dark mode" class="bg-gray-200 p-2 rounded-full hover:bg-gray-300 transition">🌙</button>
-            <a href="profile.php" class="relative group">    
+            
+            <a href="profile.php" class="relative group" title="Your Profile">    
                 <img src="<?= htmlspecialchars($user_avatar) ?>" class="w-10 h-10 rounded-full border group-hover:opacity-90 transition-opacity object-cover" alt="Avatar">
             </a>
-            <span class="font-semibold"><?= htmlspecialchars($user['username']) ?></span>
+            
+            <span class="font-semibold hidden sm:inline"><?= htmlspecialchars($user['username']) ?></span>
+            
             <a href="logout.php" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-700">Logout</a>
         </div>
     </header>
 
-    <main class="flex-grow container mx-auto p-6">
-        <div class="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-8">
+    <main class="flex-grow container mx-auto p-4 sm:p-6">
+        <div class="max-w-2xl mx-auto bg-white rounded-lg shadow-md p-4 sm:p-6 md:p-8">
             <h2 class="text-2xl font-bold mb-6 text-center text-[#e63946]">Edit Profile</h2>
             
             <?php if (!empty($message)): ?>

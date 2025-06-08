@@ -293,14 +293,14 @@ if (!empty($board_ids_user_can_view_activity_for)) {
 <body class="bg-gray-100 text-gray-800">
     <div class="container mx-auto p-6">
         <div class="flex justify-between items-center mb-8">
-            <h1 class="text-3xl font-bold text-[#e63946]">Planner+</h1>
-            <div class="flex items-center space-x-4">
+            <h1 class="text-3xl font-bold text-[#e63946] shrink-0">Planner+</h1>
+            <div class="flex items-center space-x-2 sm:space-x-4">
                 <div class="relative">
                     <button id="notifications-toggle" class="relative bg-gray-200 p-2 rounded-full hover:bg-gray-300 transition">
                         🔔
                         <span id="notification-count-badge" class="absolute top-0 right-0 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center" style="<?= $unread_notifications_count > 0 ? '' : 'display: none;' ?>"><?= $unread_notifications_count > 0 ? $unread_notifications_count : '' ?></span>
                     </button>
-                    <div id="notifications-dropdown" class="hidden absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-md p-4 z-50 max-h-96 overflow-y-auto">
+                    <div id="notifications-dropdown" class="hidden fixed top-20 left-4 right-4 rounded-lg bg-white shadow-md p-4 z-50 max-h-[80vh] overflow-y-auto sm:absolute sm:w-80 sm:top-full sm:left-auto sm:right-0 sm:mt-2 sm:max-h-96">
                         <div class="flex justify-between items-center mb-2">
                             <h3 class="text-lg font-semibold">Notifications</h3>
                             <a href="#" id="mark-all-read" class="text-sm text-[#e63946] hover:underline">Mark all as read</a>
@@ -313,9 +313,17 @@ if (!empty($board_ids_user_can_view_activity_for)) {
                 <button id="dark-mode-toggle" class="bg-gray-200 p-2 rounded-full hover:bg-gray-300 transition">🌙</button>
                 <div class="relative">
                     <button id="profile-toggle" class="relative"><img src="<?php echo htmlspecialchars($user_avatar); ?>" class="w-10 h-10 rounded-full border hover:opacity-90 transition-opacity" alt="Avatar"></button>
-                    <div id="profile-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-md p-4"><p class="text-sm text-gray-600"><?php echo htmlspecialchars($username); ?></p><a href="core/profile.php" class="block mt-2 text-[#e63946] hover:underline">View Profile</a></div>
+                    <div id="profile-dropdown" class="hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-md p-2 z-50">
+                        <div class="p-2 border-b border-gray-200">
+                            <p class="font-semibold text-sm text-gray-800"><?php echo htmlspecialchars($username); ?></p>
+                        </div>
+                        <div class="mt-1">
+                            <a href="core/profile.php" class="block w-full text-left px-2 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 hover:text-[#e63946]">View Profile</a>
+                            <a href="core/logout.php" class="block sm:hidden w-full text-left px-2 py-2 text-sm text-gray-700 rounded-md hover:bg-gray-100 hover:text-[#e63946]">Logout</a>
+                        </div>
+                    </div>
                 </div>
-                <a href="core/logout.php" class="bg-[#e63946] text-white py-2 px-4 rounded-lg font-semibold hover:bg-red-700 transition">Logout</a>
+                <a href="core/logout.php" class="bg-[#e63946] text-white py-2 px-4 rounded-lg font-semibold hover:bg-red-700 transition hidden sm:block">Logout</a>
             </div>
         </div>
 
