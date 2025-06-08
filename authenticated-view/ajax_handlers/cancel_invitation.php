@@ -2,7 +2,7 @@
 // File: authenticated-view/ajax_handlers/cancel_invitation.php
 session_start();
 
-header('Content-Type: application/json'); // Ensure JSON response
+header('Content-Type: application/json');
 
 if (!isset($_SESSION['user_id'])) {
     echo json_encode(['success' => false, 'message' => 'User not authenticated. Please log in.']);
@@ -85,8 +85,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             log_activity($connection, $board_id, $canceller_user_id, 'invitation_cancelled', $activity_description, $invitation_id, 'invitation');
         }
         
-        // 6. Optionally, delete the notification sent to the invited user about this pending invitation
-        // This is good for cleanup so they don't see an old notification with now-defunct actions.
         $delete_notification_sql = "DELETE FROM Planner_Notifications 
                                     WHERE related_entity_id = ? AND related_entity_type = 'invitation' AND type = 'invitation' AND user_id = ?";
         $stmt_delete_notif = $connection->prepare($delete_notification_sql);

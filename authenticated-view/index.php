@@ -76,7 +76,7 @@ $board_access_subquery = "
 ";
 
 $total_upcoming_deadlines_count = 0;
-// MODIFIED SQL for counting deadlines: Added (t.assigned_to_user_id = ? OR t.assigned_to_user_id IS NULL)
+// SQL for counting deadlines: Added (t.assigned_to_user_id = ? OR t.assigned_to_user_id IS NULL)
 $count_deadlines_sql = "SELECT COUNT(DISTINCT t.task_id) as count 
                         FROM Planner_Tasks t 
                         JOIN Planner_Boards b_main ON t.board_id = b_main.board_id 
@@ -95,7 +95,7 @@ if ($count_deadlines_stmt) {
 } else { error_log("Dashboard: Failed to prepare statement for total upcoming deadlines count: " . $connection->error); }
 
 $upcoming_tasks_details = [];
-// MODIFIED SQL for fetching deadline details: Added (t.assigned_to_user_id = ? OR t.assigned_to_user_id IS NULL)
+// SQL for fetching deadline details: Added (t.assigned_to_user_id = ? OR t.assigned_to_user_id IS NULL)
 $details_deadlines_sql = "SELECT t.task_id, t.task_name, t.due_date, t.board_id, t.assigned_to_user_id, 
                                  b.board_name, b.is_archived as board_is_archived,
                                  u_assigned.username as assigned_username
@@ -189,7 +189,6 @@ if ($stmt_owner_log_access) {
 }
 
 // 2. Boards where user is a collaborator with specific log access rights
-// Ensure Planner_Boards has 'activity_log_permissions' TEXT column
 $collab_boards_log_access_sql = "
     SELECT 
         c.board_id, 
@@ -233,11 +232,7 @@ if ($stmt_collab_log_access) {
 $board_ids_user_can_view_activity_for = array_unique($board_ids_user_can_view_activity_for);
 
 
-// Now fetch recent activities ONLY from these permitted boards
 if (!empty($board_ids_user_can_view_activity_for)) {
-    // CREATE TABLE IF NOT EXISTS should ideally be in an installer script
-    // $sql_create_activity_table_dashboard = "CREATE TABLE IF NOT EXISTS Planner_ActivityLog (...)";
-    // $connection->query($sql_create_activity_table_dashboard);
 
     $board_ids_placeholders_recent = implode(',', array_fill(0, count($board_ids_user_can_view_activity_for), '?'));
     

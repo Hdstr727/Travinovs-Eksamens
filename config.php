@@ -5,7 +5,7 @@ define('CORE_PATH', BASE_PATH . 'authenticated-view/core/');
 define('LOGIN_PATH', 'core/login.php');
 
 // For URL redirections
-define('BASE_URL', '/3pt1/travinovs/Travinovs-Eksamens/'); // Adjust this based on your server configuration
+define('BASE_URL', '/3pt1/travinovs/Travinovs-Eksamens/');
 define('LOGIN_URL', BASE_URL . 'authenticated-view/core/login.php');
 
 ?>

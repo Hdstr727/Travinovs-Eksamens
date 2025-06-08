@@ -211,7 +211,7 @@ html.dark-mode {
 
 /* Footer (bg-gray-800 in light mode) */
 .dark-mode footer.bg-gray-800 {
-    background-color: #111827 !important; /* Even darker gray, or #1A1B26 to match body */
+    background-color: #111827 !important;
     color: #A9A9B3 !important;
 }
 .dark-mode footer.bg-gray-800 h4.text-white,

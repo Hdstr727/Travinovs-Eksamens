@@ -18,17 +18,6 @@ if (!function_exists('update_board_last_activity_timestamp')) {
     }
 }
 
-
-/**
- * Retrieves notification preferences for a user regarding a specific activity on a board.
- * Falls back from board-specific settings -> global user settings -> application defaults.
- *
- * @param mysqli $connection DB connection
- * @param int $user_id The ID of the user whose preferences are being checked
- * @param ?int $board_id The ID of the board related to the activity (can be null for non-board specific activities)
- * @param string $activity_type_key The key for the notification setting (e.g., 'notify_task_assignment')
- * @return array ['should_notify_app' => bool, 'should_notify_email' => bool (currently unused in UI)]
- */
 if (!function_exists('get_user_notification_preferences')) {
     function get_user_notification_preferences(mysqli $connection, int $user_id, ?int $board_id, string $activity_type_key): array {
         // Application-level defaults (match your DB table defaults)
@@ -116,7 +105,7 @@ function log_and_notify(
     mysqli $connection,
     int $board_id, // Can be 0 or null if not board specific, but typically it is.
     int $actor_user_id,
-    string $activity_type, // e.g., 'task_created', 'new_comment'
+    string $activity_type,
     string $activity_description,
     ?int $related_entity_id = null,
     ?string $related_entity_type = null,
@@ -183,8 +172,6 @@ function log_and_notify(
         'column_updated'        => 'notify_column_changes',
         'column_deleted'        => 'notify_column_changes',
         'new_chat_message'      => 'notify_new_chat_message',
-        
-        // Add more mappings as your activity_types evolve
     ];
 
     $notification_setting_key = $setting_field_map[$activity_type] ?? null;
@@ -209,12 +196,6 @@ function log_and_notify(
         $should_send_app_notification = false;
 
         if ($notification_db_type === 'invitation') {
-            // For direct invitations, we generally assume the recipient wants to see it.
-            // The `get_user_notification_preferences` could still be used if you want
-            // users to disable even direct invite notifications, but that's less common.
-            // For simplicity here, direct 'invitation' types will attempt to send an app notification.
-            // The 'channel_app' setting in their global/board prefs could still turn it off.
-            // Let's check their channel_app preference for invitations:
             $prefs = get_user_notification_preferences($connection, $user_id_to_notify, $board_id, 'notify_project_management'); // Assuming 'invitation' maps to a general project setting
             if ($prefs['channel_app']) { // We don't check event_enabled for direct invites, only the channel.
                  $should_send_app_notification = true;
