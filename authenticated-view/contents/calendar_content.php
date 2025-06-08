@@ -123,13 +123,25 @@ $nav_today_params = http_build_query($nav_today_params_array);
 
 
 // --- SQL Query to fetch tasks (common for all views) ---
+// This query is now secure and only fetches tasks from boards the user can access.
+// It also filters out tasks from deleted or archived boards by default.
 $sql = "SELECT t.*, b.board_name 
         FROM Planner_Tasks t 
-        LEFT JOIN Planner_Boards b ON t.board_id = b.board_id 
+        JOIN Planner_Boards b ON t.board_id = b.board_id 
         WHERE DATE(t.due_date) BETWEEN ? AND ? 
-        AND t.is_deleted = 0";
+          AND t.is_deleted = 0 
+          AND b.is_deleted = 0
+          AND b.is_archived = 0
+          AND t.board_id IN (
+              -- Boards the user owns
+              SELECT board_id FROM Planner_Boards WHERE user_id = ?
+              UNION
+              -- Boards the user is a collaborator on
+              SELECT board_id FROM Planner_Collaborators WHERE user_id = ?
+          )";
 $stmt = $connection->prepare($sql);
-$stmt->bind_param("ss", $start_date_sql, $end_date_sql);
+// Bind the two new user_id parameters for the subquery
+$stmt->bind_param("ssii", $start_date_sql, $end_date_sql, $user_id, $user_id);
 $stmt->execute();
 $result = $stmt->get_result();
 
