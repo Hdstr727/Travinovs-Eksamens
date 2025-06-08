@@ -1,6 +1,8 @@
 <?php
 // core/layout.php
-session_start();
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Determine project root path dynamically for consistency
 $project_root = dirname(dirname(dirname(__FILE__))); // This should point to Travinovs-Eksamens directory

@@ -1,5 +1,5 @@
 <?php
-// calendar_content.php - Will be included in the main layout
+// calendar_content.php 
 
 // Determine the current view
 $view = isset($_GET['view']) ? $_GET['view'] : 'month'; // Default to month
